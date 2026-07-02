@@ -1,0 +1,13 @@
+{
+  "name": "login-v1-day06",
+  "version": "1.0.0",
+  "description": "登录系统 - Day 06：第三方登录（微信 + QQ）",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "better-sqlite3": "^11.0.0"
+  }
+}

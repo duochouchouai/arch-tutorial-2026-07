@@ -1,0 +1,13 @@
+{
+  "name": "login-v1-day05",
+  "version": "1.0.0",
+  "description": "登录系统 - Day 05：账户锁定防爆破",
+  "main": "main.js",
+  "scripts": {
+    "start": "node main.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "better-sqlite3": "^11.0.0"
+  }
+}
