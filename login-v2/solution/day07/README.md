@@ -1,6 +1,6 @@
 # Day 07 参考答案
 
-> **请在完成作业后查看。** 参考答案的目的是让你对照自己的实现，验证架构分层是否正确。
+>  参考答案的目的是让你对照自己的实现，验证架构分层是否正确。
 
 ---
 
@@ -33,7 +33,7 @@ solution/day07/
     ├── package.json
     └── src/
         ├── domain/
-        │   └── user.ts                ← 与后端完全一致
+        │   └── user.ts
         ├── application/
         │   ├── useLogin.ts
         │   ├── useRegister.ts
@@ -44,7 +44,7 @@ solution/day07/
             ├── login.vue
             ├── register.vue
             ├── forgot-password.vue
-            └── index.vue              ← 登录后首页
+            └── index.vue
 ```
 
 ---
@@ -79,18 +79,18 @@ solution/day07/
 
 ## 项目 3：uniapp 前端 → 对照要点
 
-参考答案提供完整的前端实现，包含以下文件：
+参考答案提供完整的前端实现：
 
-| 文件 | 层级 | 关键点 |
-|------|------|--------|
+| 文件 | 层级 | 说明 |
+|------|------|------|
 | `domain/user.ts` | domain | 类型与后端 `User` 完全一致 |
-| `application/useLogin.ts` | application | 调 `authApi.login()`，处理 token 存储和错误 |
+| `application/useLogin.ts` | application | 调 `authApi.login()`，处理 token 和错误 |
 | `application/useRegister.ts` | application | 调 `authApi.register()` |
 | `application/useForgotPassword.ts` | application | 调 `authApi.forgotPassword()` |
-| `infrastructure/auth-api.ts` | infrastructure | 封装所有 `uni.request` 调用，**全项目唯一出现 `uni.request` 的地方** |
-| `pages/login.vue` | presentation | 登录表单，调 `useLogin` hook |
-| `pages/register.vue` | presentation | 注册表单，调 `useRegister` hook |
-| `pages/forgot-password.vue` | presentation | 忘记密码表单，调 `useForgotPassword` hook |
+| `infrastructure/auth-api.ts` | infrastructure | **全项目唯一出现 `uni.request` 的地方** |
+| `pages/login.vue` | presentation | 登录表单，调 `useLogin` |
+| `pages/register.vue` | presentation | 注册表单，调 `useRegister` |
+| `pages/forgot-password.vue` | presentation | 忘记密码表单，调 `useForgotPassword` |
 | `pages/index.vue` | presentation | 登录后首页 |
 
 **检查自己**：
