@@ -138,5 +138,5 @@ git push origin feat/yourname
 ```
 login-v2/solution/day07/
 ├── backend/          ← 后端
-└── uni-login/        ← 前端
+└── uniapp-login/     ← 前端（HBuilderX 项目）
 ```

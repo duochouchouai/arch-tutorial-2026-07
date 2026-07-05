@@ -29,22 +29,26 @@ solution/day07/
 │       └── shared/
 │           └── errors.ts
 │
-└── uni-login/                  ← 前端参考答案
-    ├── package.json
-    └── src/
-        ├── domain/
-        │   └── user.ts
-        ├── application/
-        │   ├── useLogin.ts
-        │   ├── useRegister.ts
-        │   └── useForgotPassword.ts
-        ├── infrastructure/
-        │   └── auth-api.ts            ← uni.request 唯一出现的地方
-        └── pages/
-            ├── login.vue
-            ├── register.vue
-            ├── forgot-password.vue
-            └── index.vue
+└── uniapp-login/               ← 前端参考答案（HBuilderX 项目）
+    ├── manifest.json
+    ├── pages.json
+    ├── App.vue
+    ├── main.js
+    ├── uni.scss
+    ├── src/
+    │   ├── domain/
+    │   │   └── user.ts
+    │   ├── application/
+    │   │   ├── useLogin.ts
+    │   │   ├── useRegister.ts
+    │   │   └── useForgotPassword.ts
+    │   └── infrastructure/
+    │       └── auth-api.ts            ← uni.request 唯一出现的地方
+    └── pages/
+        ├── index/index.vue
+        ├── login/login.vue
+        ├── register/register.vue
+        └── forgot-password/forgot-password.vue
 ```
 
 ---
@@ -208,10 +212,10 @@ curl -s -X POST http://localhost:3000/auth/login \
 | `application/useRegister.ts` | application | 调 `authApi.register()` |
 | `application/useForgotPassword.ts` | application | 调 `authApi.forgotPassword()` |
 | `infrastructure/auth-api.ts` | infrastructure | **全项目唯一出现 `uni.request` 的地方** |
-| `pages/login.vue` | presentation | 登录表单，调 `useLogin` |
-| `pages/register.vue` | presentation | 注册表单，调 `useRegister` |
-| `pages/forgot-password.vue` | presentation | 忘记密码表单，调 `useForgotPassword` |
-| `pages/index.vue` | presentation | 登录后首页 |
+| `pages/login/login.vue` | presentation | 登录表单，调 `useLogin` |
+| `pages/register/register.vue` | presentation | 注册表单，调 `useRegister` |
+| `pages/forgot-password/forgot-password.vue` | presentation | 忘记密码表单，调 `useForgotPassword` |
+| `pages/index/index.vue` | presentation | 登录后首页 |
 
 **检查自己**：
 - 页面文件（`.vue`）里有没有 `uni.request`？有就扣分。
