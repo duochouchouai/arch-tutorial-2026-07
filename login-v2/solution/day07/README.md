@@ -79,8 +79,29 @@ solution/day07/
 
 > **测试前提示**：递进式锁定时长分别为 5/15/30/60 分钟。为快速验证，可以**临时**将 `login-user.ts` 中的 `durations` 改为 `[1, 2, 3, 4]`（单位秒），测试完改回来。
 
+### PostgreSQL 准备（Docker 一键启动）
+
 ```bash
-# 0. 前置准备（需要本地 PostgreSQL 已启动，数据库 login-v2 已创建）
+# 如果本地没有 PostgreSQL，可以用 Docker 快速启动：
+docker run -d \
+  --name pg-login \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=login-v2 \
+  -p 5432:5432 \
+  postgres:16
+```
+
+连接信息与 `database.ts` 中的默认值完全一致。测试完后：
+
+```bash
+docker stop pg-login && docker rm pg-login
+```
+
+### 启动后端
+
+```bash
+# 0. 前置准备（PostgreSQL 已就绪）
 cd backend && npm install && npm start
 
 # === 基础功能测试 ===
