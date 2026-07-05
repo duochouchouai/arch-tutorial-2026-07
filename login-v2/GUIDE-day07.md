@@ -1,10 +1,10 @@
 # GUIDE-day07 — 期末大作业
 
-> 恭喜你完成了 day01~day06 的手打学习。今天不再有 Step 1/2/3——只有需求描述。你需要自己判断"改哪一层、改几个文件"。
+> 恭喜你完成了 day01~day06 的手打学习。今天不再有 Step 1/2/3——只有需求描述。你可以结合AI，自己判断"改哪一层、改几个文件"。
 
 ---
 
-## 🎯 要求
+## 🎯 操作规范
 
 1. 从 `develop` 创建你自己的分支（命名为 `feat/yourname`）
 2. 完成后 PR 到远程 `develop`
@@ -41,7 +41,7 @@
 
 ## 🗄️ 项目 2：数据库迁移 SQLite → PostgreSQL
 
-**背景**：day01~06 使用的是 Node.js 内置 `node:sqlite`，我们项目的实际技术栈用的是 **PostgreSQL（pgsql）**。现在需要接入 pg。
+**背景**：day01~06 使用的是 Node.js 内置 `node:sqlite`，我们实际的项目技术栈用的是 **PostgreSQL（pgsql）**。现在需要接入 pg。
 
 **你需要做的**：
 
@@ -49,15 +49,15 @@
 2. 改写 `database.ts`：用 `pg` 的 `Pool` 替代 `node:sqlite` 的 `DatabaseSync`
 3. 改写 `user-repository-sqlite.ts`：SQL 语法从 SQLite 切换到 PostgreSQL（参数占位符 `?` → `$1`，文件改名 `user-repository-pg.ts`）
 
-**评分标准**：
+**完成标准**：
 
-| 标准 | 核心要求 |
+| 标准 | 要求 |
 |------|---------|
 | 依赖倒置 | **domain、application、presentation 层一行都不能改** |
 | 改动隔离 | 只改 infrastructure 层的 2 个文件 |
 | SQL 安全 | 继续使用参数化查询（`$1`, `$2`），不是字符串拼接 |
 
-> 这就是清洁架构的核心价值：**换数据库只碰 infrastructure 层，业务逻辑纹丝不动。** 如果你改了 application 或 presentation，那就是架构没学好。
+
 
 ---
 
@@ -65,37 +65,6 @@
 
 用 uniapp 搭建前端，对接你的后端。**用 TypeScript，并按照清洁架构分层。**
 
-### 目录结构（必须遵守）
-
-```
-uni-login/
-├── src/
-│   ├── domain/              ← User 类型定义（和后端 domain/user.ts 完全一致）
-│   │   └── user.ts
-│   │
-│   ├── application/         ← useXxx() hooks（调 authApi，不调 uni.request）
-│   │   ├── useRegister.ts
-│   │   ├── useLogin.ts
-│   │   ├── useForgotPassword.ts
-│   │   └── useAutoLogin.ts
-│   │
-│   ├── infrastructure/      ← uni.request 唯一出现的地方！
-│   │   └── auth-api.ts      ← 封装所有 /auth/* 接口调用
-│   │
-│   └── pages/               ← presentation（只调 hooks，不调 uni.request）
-│       ├── login.vue
-│       ├── register.vue
-│       └── forgot-password.vue
-│
-└── package.json
-```
-
-### 架构硬约束
-
-1. **`uni.request` 只能出现在 `infrastructure/auth-api.ts`** — 其他地方出现直接扣 15 分
-2. **页面只能调 hooks，不能调 auth-api** — 调了直接扣 15 分
-3. **domain/user.ts 的类型必须和后端完全一致** — 不一致扣 10 分
-4. **TypeScript 必用** — `.js` 文件扣 10 分
 
 ### 页面最低要求
 
@@ -105,7 +74,7 @@ uni-login/
 - 登录页面（`login.vue`）
 - 忘记密码页面（`forgot-password.vue`）
 
-自动登录、OAuth 登录、退出登录、重置密码等功能**只需在 infrastructure 和 application 层封装好接口**，页面不做不扣分。
+自动登录、OAuth 登录、退出登录、重置密码等功能**只需在 infrastructure 和 application 层封装好接口**。
 
 
 ---
@@ -127,9 +96,9 @@ git push origin feat/yourname
 
 - [ ] 分支从 `develop` 创建，并 PR 到 `develop`，**不要搞错分支**
 - [ ] 已写明 comparing changes 
-- [ ] 后端递进式锁定手动测试通过
+- [ ] 后端测试通过
 - [ ] 前端注册、登录、忘记密码三个页面能跑通
-- [ ] uni.request 只出现在 auth-api.ts
+
 
 ### 仓库结构
 
