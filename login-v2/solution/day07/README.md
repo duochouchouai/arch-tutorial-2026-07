@@ -6,96 +6,98 @@
 
 ## 清洁架构分层图
 
+
 ### 后端（Node.js + PostgreSQL）
 
 ```
-                         HTTP 请求
-                            │
-                            ▼
+                          HTTP 请求
+                           │
+                           ▼
   ┌────────────────────────────────────────────────┐
   │              PRESENTATION                      │
-  │  auth-controller.ts   注册 /register            │
-  │  auth-schema.ts       登录 /login               │
-  │                       忘记 /forgot-password     │
-  │  职责：解析 HTTP → 调用 use case → 返回 JSON    │
+  │  auth-controller.ts   注册 /register             │
+  │  auth-schema.ts       登录 /login                │
+  │                       忘记 /forgot-password      │
+  │  职责：解析 HTTP → 调用 use case → 返回 JSON            │
   └───────────────────────┬────────────────────────┘
-                          │ 调用
-                          ▼
+                           │ 调用
+                           ▼
   ┌────────────────────────────────────────────────┐
   │              APPLICATION                       │
-  │  RegisterUserUseCase    编排注册流程            │
-  │  LoginUserUseCase       编排登录+递进式锁定     │
-  │  ForgotPasswordUseCase  编排忘记密码            │
+  │  RegisterUserUseCase    编排注册流程                 │
+  │  LoginUserUseCase       编排登录+递进式锁定             │
+  │  ForgotPasswordUseCase  编排忘记密码                 │
   │  ...                                           │
-  │  职责：编排业务逻辑，不关心 HTTP 和数据库       │
-  │  只依赖 UserRepository 接口                     │
+  │  职责：编排业务逻辑，不关心 HTTP 和数据库                       │
+  │  只依赖 UserRepository 接口                         │
   └───────────────────────┬────────────────────────┘
-                          │ 依赖（接口）
-                          ▼
+                           │ 依赖（接口）
+                           ▼
   ┌────────────────────────────────────────────────┐
-  │                DOMAIN                          │
-  │  user.ts               User { id,username }    │
-  │  user-repository.ts    interface UserRepository │
+  │              DOMAIN                            │
+  │  user.ts               User {{ id,username }}  │
+  │  user-repository.ts    interface UserRepository│
   │                        LockStatus 等            │
-  │  职责：定义实体 + 仓库接口                      │
-  │  不依赖任何框架、任何数据库驱动                  │
-  └────────────────────────────────────────────────┘
-                          ▲
-                          │ 实现（依赖倒置）
+  │  职责：定义实体 + 仓库接口                                │
+  │  不依赖任何框架、任何数据库驱动                               │
+  └───────────────────────┴────────────────────────┘
+                           ▲
+                           │ 实现（依赖倒置）
   ┌────────────────────────────────────────────────┐
-  │            INFRASTRUCTURE                      │
-  │  database.ts             pg Pool 连接           │
-  │  user-repository-pg.ts   implements UserRepo    │
-  │                          参数化查询 $1 $2 $3    │
-  │  职责：实现 domain 接口，连接 PostgreSQL        │
+  │              INFRASTRUCTURE                    │
+  │  database.ts             pg Pool 连接            │
+  │  user-repository-pg.ts   implements UserRepo   │
+  │                          参数化查询 $1 $2 $3        │
+  │  职责：实现 domain 接口，连接 PostgreSQL                 │
   └────────────────────────────────────────────────┘
 ```
 
 依赖方向：**presentation → application → domain ← infrastructure**
 （infrastructure 实现 domain 接口，形成依赖倒置）
 
+
 ### 前端（uniapp + Vue3）
 
 ```
-                        用户操作
+                          用户操作
                            │
                            ▼
   ┌────────────────────────────────────────────────┐
   │              PRESENTATION                      │
-  │  pages/login.vue              登录表单          │
-  │  pages/register.vue           注册表单          │
-  │  pages/forgot-password.vue    忘记密码          │
-  │  pages/index.vue              登录后首页        │
-  │  职责：渲染页面 + 样式 + 调 hooks               │
-  │  禁止：uni.request、业务判断                    │
+  │  pages/login.vue              登录表单             │
+  │  pages/register.vue           注册表单             │
+  │  pages/forgot-password.vue    忘记密码             │
+  │  pages/index.vue              登录后首页            │
+  │  职责：渲染页面 + 样式 + 调 hooks                        │
+  │  禁止：uni.request、业务判断                           │
   └───────────────────────┬────────────────────────┘
-                          │ 调用
-                          ▼
+                           │ 调用
+                           ▼
   ┌────────────────────────────────────────────────┐
   │              APPLICATION                       │
-  │  useLogin.ts           调 authApi.login()      │
-  │  useRegister.ts        调 authApi.register()   │
-  │  useForgotPassword.ts  管理 token / 错误 / 状态 │
-  │  职责：调 authApi，处理返回数据和错误            │
-  │  禁止：uni.request、DOM 操作                    │
+  │  useLogin.ts           调 authApi.login()       │
+  │  useRegister.ts        调 authApi.register()    │
+  │  useForgotPassword.ts  管理 token / 错误 / 状态      │
+  │  职责：调 authApi，处理返回数据和错误                        │
+  │  禁止：uni.request、DOM 操作                         │
   └───────────────────────┬────────────────────────┘
-                          │ 调用
-                          ▼
+                           │ 调用
+                           ▼
   ┌────────────────────────────────────────────────┐
-  │            INFRASTRUCTURE                      │
+  │              INFRASTRUCTURE                    │
   │  auth-api.ts                                   │
   │    POST /auth/register                         │
   │    POST /auth/login                            │
   │    POST /auth/forgot-password                  │
-  │  职责：封装 uni.request，全项目唯一出现处       │
+  │  职责：封装 uni.request，全项目唯一出现处                    │
   └────────────────────────────────────────────────┘
 
   ┌────────────────────────────────────────────────┐
-  │                DOMAIN                          │
+  │              DOMAIN                            │
   │  user.ts                                       │
-  │    interface User { id, username, email }       │
-  │  职责：定义 User 类型，与后端完全一致            │
-  │  各层都可 import，不依赖任何框架                 │
+  │    interface User {{ id, username, email }}    │
+  │  职责：定义 User 类型，与后端完全一致                         │
+  │  各层都可 import，不依赖任何框架                           │
   └────────────────────────────────────────────────┘
 ```
 
