@@ -29,15 +29,12 @@ export class LoginUserUseCase {
       throw new UnauthorizedError('用户名或密码错误');
     }
 
-    // 2. 检查账户是否锁定
+    // 2. 检查账户是否锁定（只拦截未过期的锁）
     const lockStatus = await this.userRepository.getLockStatus(user.id);
     if (lockStatus.lockedUntil && new Date(lockStatus.lockedUntil) > new Date()) {
       throw new UnauthorizedError('账户已锁定，请稍后再试');
     }
-    if (lockStatus.lockedUntil) {
-      // 锁定已过期，自动清除
-      await this.userRepository.resetLockStatus(user.id);
-    }
+    // 锁已过期 → 不重置 lockCount，保留递进级别；只有登录成功才归零
 
     // 3. 验证密码
     const isValid = await bcrypt.compare(input.password, user.hashedPassword);

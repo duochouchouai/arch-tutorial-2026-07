@@ -131,14 +131,8 @@ curl -s -X POST http://localhost:3000/auth/login \
   -d '{"username":"bob","password":"123456"}'
 # 预期：{"success":false,"message":"账户已锁定，请稍后再试"}
 
-# 8. 等待锁定过期（改成秒级时限后只等几秒），正确密码登录 → 成功并重置 lockCount
+# 8. 等待锁定过期（用秒级时限则等几秒），再次输错 5 次 → lockCount 递进
 sleep 2
-curl -s -X POST http://localhost:3000/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"bob","password":"123456"}'
-# 预期：{"success":true,"data":{"user":{...}}}  ← 登录成功，lockCount 归零
-
-# 9. 第二轮：再次连续 5 次输错 → 这次应提示"锁定15分钟"
 for i in 1 2 3 4 5; do
   echo "--- 第 $i 次错误 ---"
   curl -s -X POST http://localhost:3000/auth/login \
@@ -146,7 +140,35 @@ for i in 1 2 3 4 5; do
     -d '{"username":"bob","password":"wrong"}'
 done
 # 预期最后一行：{"success":false,"message":"登录失败次数过多，账户已锁定15分钟"}
-# ↑ 时间从 5 → 15，证明 lockCount 在递进
+# ↑ 上一轮是 5 分钟，这一轮是 15 分钟——因为过期后继续输错，lockCount 从 1 递进到 2
+
+# 9. 再次过期后输错 → 第三次锁定 30 分钟
+sleep 2
+for i in 1 2 3 4 5; do
+  echo "--- 第 $i 次错误 ---"
+  curl -s -X POST http://localhost:3000/auth/login \
+    -H 'Content-Type: application/json' \
+    -d '{"username":"bob","password":"wrong"}'
+done
+# 预期最后一行：{"success":false,"message":"登录失败次数过多，账户已锁定30分钟"}
+
+# 10. 第四轮 → 60 分钟，之后永远 60 分钟（封顶）
+sleep 2
+for i in 1 2 3 4 5; do
+  echo "--- 第 $i 次错误 ---"
+  curl -s -X POST http://localhost:3000/auth/login \
+    -H 'Content-Type: application/json' \
+    -d '{"username":"bob","password":"wrong"}'
+done
+# 预期最后一行：{"success":false,"message":"登录失败次数过多，账户已锁定60分钟"}
+
+# 11. 只有在登录成功后，lockCount 才归零
+sleep 2
+curl -s -X POST http://localhost:3000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"bob","password":"123456"}'
+# 预期：{"success":true,...}  ← 登录成功，lockCount 归零
+# 此后如果再输错 5 次，回到 5 分钟从头开始
 ```
 
 > **关键验证点**：第一轮锁定是"5 分钟"，解锁后第二轮是"15 分钟"——如果两轮都是 5 分钟，说明 `lockCount` 没有生效，检查 `resetLockStatus` 是否归零了 `lockCount`、`lockAccount` 是否递增了 `lockCount`。
