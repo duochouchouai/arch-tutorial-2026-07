@@ -9,63 +9,67 @@
 ### 后端（Node.js + PostgreSQL）
 
 ```
-┌──────────────────────────────────────────┐
-│              PRESENTATION                 │
-│  auth-controller.ts / auth-schema.ts     │
-│  职责：解析 HTTP 请求 → 调 use case → 返回响应 │
-│  依赖：application 层                      │
-├──────────────────────────────────────────┤
-│              APPLICATION                  │
-│  login-user.ts / register-user.ts 等      │
-│  职责：编排业务逻辑，不关心 I/O              │
-│  依赖：domain 层（接口）                    │
-├──────────────────────────────────────────┤
-│                DOMAIN                     │
-│  user.ts / user-repository.ts            │
-│  职责：定义实体 + 仓库接口，不依赖任何框架     │
-│  依赖：无                                  │
-├──────────────────────────────────────────┤
-│            INFRASTRUCTURE                 │
-│  database.ts / user-repository-pg.ts     │
-│  职责：实现 domain 接口，连接 PostgreSQL    │
-│  依赖：domain 层（实现接口）                │
-└──────────────────────────────────────────┘
-
-依赖方向：presentation → application → domain ← infrastructure
-                                              ↑ 依赖倒置
+┌──────────────────────────────────────────────────┐
+│  PRESENTATION                                    │
+│  auth-controller.ts   解析 HTTP，调 use case       │
+│  auth-schema.ts       Zod 校验，返回 JSON         │
+│                                                  │
+│  依赖 ↓                                          │
+├──────────────────────────────────────────────────┤
+│  APPLICATION                                     │
+│  login-user.ts        编排业务逻辑                │
+│  register-user.ts     不关心 HTTP / 数据库         │
+│  forgot-password.ts                              │
+│                                                  │
+│  依赖 ↓（仅接口）                                  │
+├──────────────────────────────────────────────────┤
+│  DOMAIN                                          │
+│  user.ts              定义实体 User               │
+│  user-repository.ts   定义仓库接口                 │
+│                                                  │
+│     不依赖任何框架                                 │
+├──────────────────────────────────────────────────┤
+│  INFRASTRUCTURE                                  │
+│  database.ts          连接 PostgreSQL（pg Pool）   │
+│  user-repository-pg.ts  实现 UserRepository 接口   │
+│                                                  │
+│     实现 ↑（依赖倒置）                              │
+└──────────────────────────────────────────────────┘
 ```
+
+依赖方向：**presentation → application → domain ← infrastructure**
 
 ### 前端（uniapp + Vue3）
 
 ```
-┌──────────────────────────────────────────┐
-│              PRESENTATION                 │
-│  pages/*.vue                              │
-│  职责：渲染页面、样式、调 hooks              │
-│  禁止：uni.request、业务判断                │
-│  依赖：application 层                      │
-├──────────────────────────────────────────┤
-│              APPLICATION                  │
-│  src/application/use*.ts                 │
-│  职责：调 authApi、处理 token/错误/状态     │
-│  禁止：uni.request、DOM 操作               │
-│  依赖：infrastructure 层                   │
-├──────────────────────────────────────────┤
-│            INFRASTRUCTURE                 │
-│  src/infrastructure/auth-api.ts          │
-│  职责：封装 uni.request，全项目唯一出现处    │
-│  依赖：无                                  │
-├──────────────────────────────────────────┤
-│                DOMAIN                     │
-│  src/domain/user.ts                      │
-│  职责：定义 User 类型，与后端完全一致        │
-│  依赖：无                                  │
-└──────────────────────────────────────────┘
-
-依赖方向：presentation → application → infrastructure
-                │
-                └──→ domain ←── 各层都可引用类型
+┌──────────────────────────────────────────────────┐
+│  PRESENTATION                                    │
+│  pages/login.vue        渲染 + 样式 + 调 hooks    │
+│  pages/register.vue     禁止 uni.request          │
+│  pages/index.vue                                 │
+│                                                  │
+│  依赖 ↓                                          │
+├──────────────────────────────────────────────────┤
+│  APPLICATION                                     │
+│  src/application/useLogin.ts       调 authApi    │
+│  src/application/useRegister.ts    处理 token     │
+│  src/application/useForgotPwd.ts   管理状态/错误   │
+│                                                  │
+│  依赖 ↓                                          │
+├──────────────────────────────────────────────────┤
+│  INFRASTRUCTURE                                  │
+│  src/infrastructure/auth-api.ts                  │
+│  封装 uni.request，全项目唯一出现处                 │
+│                                                  │
+├──────────────────────────────────────────────────┤
+│  DOMAIN                                          │
+│  src/domain/user.ts      定义 User 类型            │
+│  与后端完全一致，各层都可引用                       │
+└──────────────────────────────────────────────────┘
 ```
+
+依赖方向：**presentation → application → infrastructure**
+　各层都可引用 **domain**（类型定义）
 
 ### 两者对比
 
