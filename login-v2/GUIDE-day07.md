@@ -131,7 +131,7 @@ git push origin feat/yourname
 
 ### 小提醒
 
-- **`pages.json` 第一个页面是启动页**，把 `login` 放第一项，否则用户直接进入首页绕过登录。写参考答案的人自己都犯过这个错。
+- uniapp **`pages.json` 第一个页面是启动页**，把 `login` 放第一项，否则用户直接进入首页绕过登录。
 
 ---
 

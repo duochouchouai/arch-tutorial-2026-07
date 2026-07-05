@@ -29,7 +29,7 @@ solution/day07/
 │       └── shared/
 │           └── errors.ts
 │
-└── uniapp-login/               ← 前端参考答案（HBuilderX 项目）
+└── uniapp-login/               ← 前端参考答案
     ├── manifest.json
     ├── pages.json
     ├── App.vue
