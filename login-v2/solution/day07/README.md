@@ -79,10 +79,11 @@ solution/day07/
 
 > **测试前提示**：递进式锁定时长分别为 5/15/30/60 分钟。为快速验证，可以**临时**将 `login-user.ts` 中的 `durations` 改为 `[1, 2, 3, 4]`（单位秒），测试完改回来。
 
-### PostgreSQL 准备（Docker 一键启动）
+### PostgreSQL 准备
+
+如果本地已有 PostgreSQL，确保创建 `login-v2` 数据库即可。没有的话用 Docker 一键启动：
 
 ```bash
-# 如果本地没有 PostgreSQL，可以用 Docker 快速启动：
 docker run -d \
   --name pg-login \
   -e POSTGRES_USER=postgres \
