@@ -49,6 +49,17 @@
 2. 改写 `database.ts`：用 `pg` 的 `Pool` 替代 `node:sqlite` 的 `DatabaseSync`
 3. 改写 `user-repository-sqlite.ts`：SQL 语法从 SQLite 切换到 PostgreSQL（参数占位符 `?` → `$1`，文件改名 `user-repository-pg.ts`）
 
+**PostgreSQL 准备**：如果本地已有 pg，创建 `login-v2` 数据库即可。没有的话用 Docker 一键启动：
+
+```bash
+docker run -d --name pg-login \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=login-v2 \
+  -p 5432:5432 \
+  postgres:16
+```
+
 **完成标准**：
 
 | 标准 | 要求 |
