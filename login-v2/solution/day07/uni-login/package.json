@@ -1,0 +1,20 @@
+{
+  "name": "uni-login",
+  "version": "1.0.0",
+  "scripts": {
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "dev:h5": "uni"
+  },
+  "dependencies": {
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "^3.4.0",
+    "@dcloudio/uni-app": "3.0.0-4020920240930001",
+    "@dcloudio/uni-mp-weixin": "3.0.0-4020920240930001",
+    "@dcloudio/vite-plugin-uni": "3.0.0-4020920240930001",
+    "sass": "^1.77.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0"
+  }
+}

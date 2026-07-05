@@ -20,3 +20,17 @@ async function handleForgot() {
   } catch {}
 }
 </script>
+
+<style lang="scss" scoped>
+input {
+  border: 1px solid #ddd;
+  padding: 20rpx;
+  margin: 20rpx;
+  border-radius: 8rpx;
+}
+button {
+  margin: 20rpx;
+  background-color: #007aff;
+  color: #fff;
+}
+</style>

@@ -6,6 +6,8 @@
  * 绝不直接调用 uni.request。
  */
 
+import type { User } from '../domain/user';
+
 const BASE_URL = 'http://localhost:3000/auth';
 
 interface ApiResponse<T> {

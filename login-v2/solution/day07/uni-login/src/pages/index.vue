@@ -12,7 +12,7 @@ function handleLogout() {
 }
 </script>
 
-<style>
+<style lang="scss" scoped>
 .congrats {
   font-size: 40rpx;
   font-weight: bold;
