@@ -1,24 +1,55 @@
 <template>
-  <view>
-    <text class="congrats">恭喜完成架构学习，祝你在今后的开发中顺利！</text>
-    <button @click="handleLogout">退出登录</button>
+  <view class="terminal">
+    <view class="output">$ ssh login@arch-tutorial</view>
+    <view class="output">Authenticated.</view>
+    <view class="output"></view>
+    <view class="big-text">恭喜完成架构学习<br/>祝你在今后的开发中顺利！</view>
+    <view class="output"></view>
+    <view class="prompt">$ exit</view>
+    <button @click="handleLogout" class="cmd-btn">$ logout</button>
   </view>
 </template>
 
 <script setup lang="ts">
 function handleLogout() {
   uni.removeStorageSync('remember_token');
-  uni.navigateTo({ url: '/pages/login' });
+  uni.navigateTo({ url: '/pages/login/login' });
 }
 </script>
 
 <style lang="scss" scoped>
-.congrats {
-  font-size: 40rpx;
+.terminal {
+  background: #ffffff;
+  min-height: 100vh;
+  padding: 60rpx 40rpx;
+  font-family: 'Courier New', Courier, monospace;
+}
+.output {
+  color: #555;
+  font-size: 28rpx;
+  margin-bottom: 8rpx;
+}
+.big-text {
+  font-size: 36rpx;
   font-weight: bold;
-  color: #ff6600;
+  color: #1a1a1a;
+  font-family: 'Courier New', Courier, monospace;
   text-align: center;
-  margin-top: 200rpx;
-  display: block;
+  margin: 40rpx 0;
+  line-height: 1.8;
+}
+.prompt {
+  color: #555;
+  font-size: 28rpx;
+  margin-top: 32rpx;
+}
+.cmd-btn {
+  background: #ffffff;
+  border: 2rpx solid #333;
+  color: #1a1a1a;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 28rpx;
+  margin-top: 16rpx;
+  padding: 16rpx;
 }
 </style>
