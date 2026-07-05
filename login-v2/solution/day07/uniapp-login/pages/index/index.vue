@@ -3,7 +3,7 @@
     <view class="output">$ ssh login@arch-tutorial</view>
     <view class="output">Authenticated.</view>
     <view class="output"></view>
-    <view class="big-text">恭喜完成架构学习<br/>祝你在今后的开发中顺利！</view>
+    <view class="big-text">恭喜你完成架构学习<br/>祝你在梯度动力团队收获技术，收获成长！</view>
     <view class="output"></view>
     <view class="prompt">$ exit</view>
     <button @click="handleLogout" class="cmd-btn">$ logout</button>
