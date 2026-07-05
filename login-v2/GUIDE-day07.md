@@ -49,7 +49,7 @@
 2. 改写 `database.ts`：用 `pg` 的 `Pool` 替代 `node:sqlite` 的 `DatabaseSync`
 3. 改写 `user-repository-sqlite.ts`：SQL 语法从 SQLite 切换到 PostgreSQL（参数占位符 `?` → `$1`，文件改名 `user-repository-pg.ts`）
 
-**PostgreSQL 准备**：如果本地已有 pg，创建 `login-v2` 数据库即可。没有的话用 Docker 一键启动：
+**PostgreSQL 准备**：如果本地已有 pg，创建 `login-v2` 数据库即可。没有的话用也可以使用 Docker 一键启动：
 
 ```bash
 docker run -d --name pg-login \
@@ -76,6 +76,7 @@ docker run -d --name pg-login \
 
 用 uniapp 搭建前端，对接你的后端。**用 TypeScript，并按照清洁架构分层。**
 
+> **创建方式**：用 HBuilderX 新建 uniapp 项目（Vue3 + TypeScript 模板），然后在生成的项目里按下面要求组织分层代码。
 
 ### 页面最低要求
 
