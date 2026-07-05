@@ -217,6 +217,12 @@ curl -s -X POST http://localhost:3000/auth/login \
 | `pages/forgot-password/forgot-password.vue` | presentation | 忘记密码表单，调 `useForgotPassword` |
 | `pages/index/index.vue` | presentation | 登录后首页 |
 
+### 如何运行
+
+1. 用 HBuilderX 打开 `uniapp-login/` 目录
+2. 确保后端已在 `http://localhost:3000` 启动
+3. HBuilderX 菜单 → 运行 → 运行到浏览器 → Chrome
+
 **检查自己**：
 - 页面文件（`.vue`）里有没有 `uni.request`？有就扣分。
 - `useXxx` hooks 里有没有 `uni.request`？有就扣分。
