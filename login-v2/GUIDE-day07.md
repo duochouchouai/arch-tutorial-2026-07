@@ -129,6 +129,10 @@ git push origin feat/yourname
 - 递进式锁定改动顺序：domain → infrastructure → application，不要跳过 domain
 - 每个 commit 之后用 `git diff --stat` 数一下改了几个文件——这正是 comparing changes 要写的内容
 
+### 小提醒
+
+- **`pages.json` 第一个页面是启动页**，把 `login` 放第一项，否则用户直接进入首页绕过登录。写参考答案的人自己都犯过这个错。
+
 ---
 
 ## 🔍 参考答案
