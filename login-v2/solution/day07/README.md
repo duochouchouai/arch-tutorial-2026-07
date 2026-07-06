@@ -129,6 +129,11 @@ solution/day07/
 ├── backend/                    ← 后端参考答案
 │   ├── package.json
 │   ├── tsconfig.json
+│   ├── tests/
+│   │   └── application/        ← 13 个单元测试
+│   │       ├── login-user.test.ts
+│   │       ├── register-user.test.ts
+│   │       └── logout.test.ts
 │   └── src/
 │       ├── index.ts
 │       ├── domain/
@@ -263,11 +268,18 @@ docker run -d \
 docker stop pg-login && docker rm pg-login
 ```
 
+### 运行测试
+
+```bash
+cd backend && npm install && npm test
+# 预期：3 个文件，13 个测试全部通过
+```
+
 ### 启动后端
 
 ```bash
 # 0. 前置准备（PostgreSQL 已就绪）
-cd backend && npm install && npm start
+cd backend && npm start
 
 # === 基础功能测试 ===
 
