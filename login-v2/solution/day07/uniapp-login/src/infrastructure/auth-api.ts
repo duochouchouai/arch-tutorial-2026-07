@@ -54,8 +54,6 @@ export interface LoginResult {
   token?: string;
 }
 
-import type { User } from '../domain/user';
-
 export const authApi = {
   register(input: RegisterInput): Promise<User> {
     return request<User>('/register', input as unknown as Record<string, unknown>);
@@ -68,7 +66,6 @@ export const authApi = {
   forgotPassword(email: string): Promise<void> {
     return request('/forgot-password', { email });
   },
-};
 
   autoLogin(token: string): Promise<User> {
     return request<User>('/auto-login', { token });
