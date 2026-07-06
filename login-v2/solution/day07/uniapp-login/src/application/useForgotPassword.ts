@@ -19,7 +19,7 @@ export function useForgotPassword() {
     if (!result.success) {
       error.value = result.error.errors[0].message;
       loading.value = false;
-      return;
+      throw new Error(result.error.errors[0].message);
     }
 
     try {
