@@ -279,7 +279,7 @@ cd backend && npm install && npm test
 
 ```bash
 # 0. 前置准备（PostgreSQL 已就绪）
-cd backend && npm start
+cd backend && npm install && npm start
 
 # === 基础功能测试 ===
 
