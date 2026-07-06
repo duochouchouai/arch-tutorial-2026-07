@@ -4,7 +4,7 @@
       <view class="prompt">$ ssh login@arch-tutorial</view>
       <view class="lock-text">ACCOUNT LOCKED</view>
       <view class="lock-countdown">{{ countdown }}</view>
-      <view class="lock-label">seconds remaining</view>
+      <view class="lock-label">minutes remaining</view>
       <view class="output"></view>
       <view class="output blink">$ █</view>
     </view>

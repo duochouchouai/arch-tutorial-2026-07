@@ -42,11 +42,11 @@ export class LoginUserUseCase {
       const attempts = await this.userRepository.incrementFailedAttempts(user.id);
       if (attempts >= 5) {
         // 递进式锁定：根据 lockCount 决定锁定时长
-        const durations = [5, 15, 30, 60]; // seconds（测试用，正式改回分钟）
+        const durations = [5, 15, 30, 60]; // 分钟
         const level = Math.min(lockStatus.lockCount, durations.length - 1);
-        const lockedUntil = new Date(Date.now() + durations[level] * 1000).toISOString();
+        const lockedUntil = new Date(Date.now() + durations[level] * 60 * 1000).toISOString();
         await this.userRepository.lockAccount(user.id, lockedUntil);
-        throw new LockedError(`登录失败次数过多，账户已锁定${durations[level]}秒`, lockedUntil);
+        throw new LockedError(`登录失败次数过多，账户已锁定${durations[level]}分钟`, lockedUntil);
       }
       throw new UnauthorizedError('用户名或密码错误');
     }
