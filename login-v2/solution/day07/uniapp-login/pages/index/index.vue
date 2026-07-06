@@ -3,7 +3,7 @@
     <view class="output">$ ssh login@arch-tutorial</view>
     <view class="output">Authenticated.</view>
     <view class="output"></view>
-    <view class="big-text">恭喜你完成架构学习<br/>祝你在梯度动力团队收获技术，收获成长！</view>
+    <view class="big-text">Congrats! Architecture Complete.<br/>Welcome to the team.</view>
     <view class="output"></view>
     <view class="output blink">$ █</view>
     <view class="output"></view>
