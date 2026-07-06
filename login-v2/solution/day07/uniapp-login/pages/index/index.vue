@@ -32,23 +32,14 @@ function handleLogout() {
   margin-bottom: 8rpx;
 }
 .big-text {
-  font-size: 40rpx;
-  font-weight: bold;
-  font-family: 'Courier New', Courier, monospace;
+  font-size: 36rpx;
+  font-family: 'Press Start 2P', 'Courier New', monospace;
   text-align: center;
   margin: 40rpx 0;
   line-height: 2.5;
   color: #e67e22;
-  text-shadow:
-    -2rpx -2rpx 0 #fff,
-     2rpx -2rpx 0 #fff,
-    -2rpx  2rpx 0 #fff,
-     2rpx  2rpx 0 #fff,
-    -1rpx  0    0 #fff,
-     1rpx  0    0 #fff,
-     0   -1rpx  0 #fff,
-     0    1rpx  0 #fff;
-  image-rendering: pixelated;
+  -webkit-text-stroke: 2rpx #e67e22;
+  -webkit-text-fill-color: transparent;
 }
 .blink {
   animation: blink 1s step-end infinite;
