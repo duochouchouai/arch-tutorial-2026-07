@@ -42,9 +42,26 @@ function handleLogout() {
   -webkit-text-stroke: 2rpx #e67e22;
   -webkit-text-fill-color: transparent;
   text-shadow:
-    2rpx 2rpx 0 #f5cba7,
-    4rpx 4rpx 0 #fdebd0,
-    6rpx 6rpx 0 #fef5e7;
+    1rpx 1rpx 0 #f0c78e,
+    2rpx 2rpx 0 #f0c78e,
+    3rpx 3rpx 0 #f0c78e,
+    4rpx 4rpx 0 #f0c78e,
+    5rpx 5rpx 0 #f0c78e,
+    6rpx 6rpx 0 #f0c78e,
+    7rpx 7rpx 0 #f0c78e,
+    8rpx 8rpx 0 #f0c78e,
+    9rpx 9rpx 0 #f0c78e,
+    10rpx 10rpx 0 #f0c78e,
+    11rpx 11rpx 0 #f0c78e,
+    12rpx 12rpx 0 #f0c78e,
+    13rpx 13rpx 0 #f0c78e,
+    14rpx 14rpx 0 #f0c78e,
+    15rpx 15rpx 0 #f0c78e,
+    16rpx 16rpx 0 #f0c78e,
+    17rpx 17rpx 0 #f0c78e,
+    18rpx 18rpx 0 #f0c78e,
+    19rpx 19rpx 0 #f0c78e,
+    20rpx 20rpx 0 #f0c78e;
 }
 .blink {
   animation: blink 1s step-end infinite;
