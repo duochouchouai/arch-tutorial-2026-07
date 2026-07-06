@@ -168,7 +168,7 @@ solution/day07/
 
 ## Zod 校验放哪层？
 
-这是一个有争议的问题。培训板书说放 **domain** 层，参考答案放在 **presentation** 层。两者都对——取决于你如何理解"业务规则"。
+这是一个有争议的问题。在实际培训板书说放 **domain** 层，而参考答案放在 **presentation** 层。两者都对——取决于你如何理解"业务规则"。
 
 ### 后端参考答案的做法：presentation 层
 
@@ -197,7 +197,7 @@ use case（application）
 
 **两种理解都是合理的。** 本参考答案选 presentation，不是因为"这才对"，而是因为如果你选了 domain，改动路径清晰：把 `auth-schema.ts` 移到 domain，presentation 改成 `import`。核心原则不变——**在哪里放不重要，重要的是你清楚"为什么放这里"**。
 
-> **遇到这种分歧，先对齐"校验属于哪层职责"，再动手。**
+> **遇到这种分歧，建议先对齐"校验属于哪层职责"，再动手。**
 
 ---
 
@@ -351,7 +351,7 @@ curl -s -X POST http://localhost:3000/auth/login \
 
 ## 项目 3：uniapp 前端 → 对照要点
 
-参考答案提供完整的前端实现：
+参考答案了提供完整的前端实现：
 
 | 文件 | 层级 | 说明 |
 |------|------|------|
@@ -372,6 +372,6 @@ curl -s -X POST http://localhost:3000/auth/login \
 3. HBuilderX 菜单 → 运行 → 运行到浏览器 → Chrome
 
 **检查自己**：
-- 页面文件（`.vue`）里有没有 `uni.request`？有就扣分。
-- `useXxx` hooks 里有没有 `uni.request`？有就扣分。
+- 页面文件（`.vue`）里有没有 `uni.request`？有就要修改。
+- `useXxx` hooks 里有没有 `uni.request`？有就要修改。
 - `domain/user.ts` 的类型和后端是否一致？
