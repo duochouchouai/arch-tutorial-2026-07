@@ -64,9 +64,11 @@
                            ▼
   ┌────────────────────────────────────────────────┐
   │              PRESENTATION                      │
-  │  pages/login.vue              登录表单          │
+  │  pages/login.vue              登录+锁屏倒计时    │
   │  pages/register.vue           注册表单          │
   │  pages/forgot-password.vue    忘记密码          │
+  │  pages/reset-password.vue     重置密码          │
+  │  pages/oauth.vue              第三方登录        │
   │  pages/index.vue              登录后首页        │
   │  职责：渲染页面 + 样式 + 调 hooks                │
   │  禁止：uni.request、业务判断                     │
@@ -78,6 +80,8 @@
   │  useLogin.ts           调 authApi.login()      │
   │  useRegister.ts        调 authApi.register()   │
   │  useForgotPassword.ts  管理 token / 错误 / 状态 │
+  │  useResetPassword.ts    useAutoLogin.ts        │
+  │  useOAuth.ts           useLogout.ts            │
   │  职责：调 authApi，处理返回数据和错误             │
   │  禁止：uni.request、DOM 操作                    │
   └───────────────────────┬────────────────────────┘
@@ -151,18 +155,24 @@ solution/day07/
     ├── src/
     │   ├── domain/
     │   │   ├── user.ts
-    │   │   └── schemas.ts           ← Zod 校验
+    │   │   └── schemas.ts             ← Zod 校验
     │   ├── application/
-    │   │   ├── useLogin.ts
+    │   │   ├── useLogin.ts            ← 登录 + 锁定倒计时
     │   │   ├── useRegister.ts
-    │   │   └── useForgotPassword.ts
+    │   │   ├── useForgotPassword.ts
+    │   │   ├── useResetPassword.ts
+    │   │   ├── useAutoLogin.ts
+    │   │   ├── useOAuth.ts
+    │   │   └── useLogout.ts
     │   └── infrastructure/
     │       └── auth-api.ts            ← uni.request 唯一出现的地方
     └── pages/
         ├── index/index.vue
-        ├── login/login.vue
+        ├── login/login.vue            ← 锁定后显示倒计时锁屏
         ├── register/register.vue
-        └── forgot-password/forgot-password.vue
+        ├── forgot-password/forgot-password.vue
+        ├── reset-password/reset-password.vue
+        └── oauth/oauth.vue
 ```
 
 ---
@@ -359,14 +369,20 @@ curl -s -X POST http://localhost:3000/auth/login \
 |------|------|------|
 | `domain/user.ts` | domain | 类型与后端 `User` 完全一致 |
 | `domain/schemas.ts` | domain | Zod 校验，hooks 调 API 前先验格式 |
-| `application/useLogin.ts` | application | Zod 校验 → `authApi.login()`，处理 token/错误 |
-| `application/useRegister.ts` | application | 调 `authApi.register()` |
-| `application/useForgotPassword.ts` | application | 调 `authApi.forgotPassword()` |
+| `application/useLogin.ts` | application | Zod 校验 → `authApi.login()`，锁定倒计时 |
+| `application/useRegister.ts` | application | Zod 校验 → `authApi.register()` |
+| `application/useForgotPassword.ts` | application | Zod 校验 → `authApi.forgotPassword()` |
+| `application/useResetPassword.ts` | application | `authApi.resetPassword()` |
+| `application/useAutoLogin.ts` | application | `authApi.autoLogin()`，检查 remember token |
+| `application/useOAuth.ts` | application | `authApi.oauthLogin()` |
+| `application/useLogout.ts` | application | `authApi.logout()`，清 token |
 | `infrastructure/auth-api.ts` | infrastructure | **全项目唯一出现 `uni.request` 的地方** |
-| `pages/login/login.vue` | presentation | 登录表单，调 `useLogin` |
+| `pages/login/login.vue` | presentation | 登录表单 + 锁定倒计时锁屏 |
 | `pages/register/register.vue` | presentation | 注册表单，调 `useRegister` |
 | `pages/forgot-password/forgot-password.vue` | presentation | 忘记密码表单，调 `useForgotPassword` |
-| `pages/index/index.vue` | presentation | 登录后首页 |
+| `pages/reset-password/reset-password.vue` | presentation | 重置密码表单，调 `useResetPassword` |
+| `pages/oauth/oauth.vue` | presentation | 第三方登录，调 `useOAuth` |
+| `pages/index/index.vue` | presentation | 登录后首页（像素风终端祝贺页） |
 
 ### 如何运行
 
