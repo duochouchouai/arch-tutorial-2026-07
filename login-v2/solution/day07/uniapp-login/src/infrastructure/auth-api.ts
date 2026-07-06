@@ -28,9 +28,11 @@ async function request<T>(path: string, body: Record<string, unknown>): Promise<
     throw new Error('网络请求失败');
   }
 
-  const result = (res.data as ApiResponse<T>);
+  const result = (res.data as ApiResponse<T> & { lockedUntil?: string });
   if (!result.success) {
-    throw new Error(result.message || '请求失败');
+    const err = new Error(result.message || '请求失败') as Error & { lockedUntil?: string };
+    if (result.lockedUntil) err.lockedUntil = result.lockedUntil;
+    throw err;
   }
   return result.data as T;
 }

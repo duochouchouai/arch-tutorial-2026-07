@@ -4,8 +4,9 @@
     <view class="prompt">Password:</view>
     <input v-model="username" placeholder="username" class="cmd-input" />
     <input v-model="password" type="password" placeholder="········" class="cmd-input" />
-    <button @click="handleLogin" :disabled="loading" class="cmd-btn">$ login</button>
+    <button @click="handleLogin" :disabled="loading || countdown > 0" class="cmd-btn">{{ countdown > 0 ? `[locked ${countdown}s]` : '$ login' }}</button>
     <text v-if="error" class="cmd-error">{{ error }}</text>
+    <text v-if="countdown > 0" class="cmd-countdown">账户已锁定，{{ countdown }} 秒后可重试</text>
     <navigator url="/pages/register/register" class="cmd-link">$ register --new-account</navigator>
     <navigator url="/pages/forgot-password/forgot-password" class="cmd-link">$ passwd --forgot</navigator>
   </view>
@@ -17,7 +18,7 @@ import { useLogin } from '../../src/application/useLogin';
 
 const username = ref('');
 const password = ref('');
-const { loading, error, login } = useLogin();
+const { loading, error, countdown, login } = useLogin();
 
 async function handleLogin() {
   try {
@@ -64,6 +65,12 @@ async function handleLogin() {
 .cmd-error {
   display: block;
   color: #cc0000;
+  font-size: 26rpx;
+  margin-bottom: 24rpx;
+}
+.cmd-countdown {
+  display: block;
+  color: #999;
   font-size: 26rpx;
   margin-bottom: 24rpx;
 }

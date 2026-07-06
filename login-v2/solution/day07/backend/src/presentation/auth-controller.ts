@@ -9,7 +9,7 @@ import { ResetPasswordUseCase } from '../application/reset-password';
 import { AutoLoginUseCase } from '../application/auto-login';
 import { OAuthLoginUseCase } from '../application/oauth-login';
 import { LogoutUseCase } from '../application/logout';
-import { AppError } from '../shared/errors';
+import { AppError, LockedError } from '../shared/errors';
 
 /**
  * 创建认证路由
@@ -111,6 +111,11 @@ export function createAuthController(
 function handleError(res: Response, error: unknown) {
   if (error instanceof ZodError) {
     res.status(400).json({ success: false, message: error.errors[0].message });
+    return;
+  }
+
+  if (error instanceof LockedError) {
+    res.status(401).json({ success: false, message: error.message, lockedUntil: error.lockedUntil });
     return;
   }
 

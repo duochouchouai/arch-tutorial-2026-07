@@ -37,3 +37,13 @@ export class ConflictError extends AppError {
     super(409, message);
   }
 }
+
+export class LockedError extends UnauthorizedError {
+  constructor(
+    message: string,
+    public readonly lockedUntil: string,
+  ) {
+    super(message);
+    this.name = 'LockedError';
+  }
+}
