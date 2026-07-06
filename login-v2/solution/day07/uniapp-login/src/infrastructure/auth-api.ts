@@ -24,10 +24,6 @@ async function request<T>(path: string, body: Record<string, unknown>): Promise<
     data: body,
   });
 
-  if (res.statusCode < 200 || res.statusCode >= 300) {
-    throw new Error('网络请求失败');
-  }
-
   const result = (res.data as ApiResponse<T> & { lockedUntil?: string });
   if (!result.success) {
     const err = new Error(result.message || '请求失败') as Error & { lockedUntil?: string };
