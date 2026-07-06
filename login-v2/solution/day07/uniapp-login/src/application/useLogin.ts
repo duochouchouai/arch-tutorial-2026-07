@@ -1,11 +1,12 @@
 /**
  * 登录 Hook
  *
- * 职责：调 authApi.login()，处理 token 存储和错误。
+ * 职责：Zod 校验输入 → 调 authApi.login() → 处理 token 和错误。
  * 页面只调用这个 hook，不直接调 authApi。
  */
 
 import { ref } from 'vue';
+import { loginSchema } from '../domain/schemas';
 import { authApi } from '../infrastructure/auth-api';
 
 export function useLogin() {
@@ -17,15 +18,23 @@ export function useLogin() {
     loading.value = true;
     error.value = '';
 
-    try {
-      const result = await authApi.login({ username, password, rememberMe });
+    // Zod 校验 — 不通过则不发起网络请求
+    const result = loginSchema.safeParse({ username, password });
+    if (!result.success) {
+      error.value = result.error.errors[0].message;
+      loading.value = false;
+      return;
+    }
 
-      if (result.token) {
-        uni.setStorageSync('remember_token', result.token);
+    try {
+      const res = await authApi.login({ username, password, rememberMe });
+
+      if (res.token) {
+        uni.setStorageSync('remember_token', res.token);
       }
 
-      user.value = result.user;
-      return result.user;
+      user.value = res.user;
+      return res.user;
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : '登录失败';
       throw e;

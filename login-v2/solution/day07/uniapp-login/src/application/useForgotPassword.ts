@@ -3,6 +3,7 @@
  */
 
 import { ref } from 'vue';
+import { forgotPasswordSchema } from '../domain/schemas';
 import { authApi } from '../infrastructure/auth-api';
 
 export function useForgotPassword() {
@@ -13,6 +14,13 @@ export function useForgotPassword() {
   async function forgotPassword(email: string) {
     loading.value = true;
     error.value = '';
+
+    const result = forgotPasswordSchema.safeParse({ email });
+    if (!result.success) {
+      error.value = result.error.errors[0].message;
+      loading.value = false;
+      return;
+    }
 
     try {
       await authApi.forgotPassword(email);
