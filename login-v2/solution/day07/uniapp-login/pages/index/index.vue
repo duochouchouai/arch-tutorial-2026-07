@@ -20,8 +20,6 @@ function handleLogout() {
 </script>
 
 <style lang="scss" scoped>
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-
 .terminal {
   background: #ffffff;
   min-height: 100vh;
