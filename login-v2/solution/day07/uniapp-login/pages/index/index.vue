@@ -20,6 +20,8 @@ function handleLogout() {
 </script>
 
 <style lang="scss" scoped>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
 .terminal {
   background: #ffffff;
   min-height: 100vh;
@@ -32,17 +34,14 @@ function handleLogout() {
   margin-bottom: 8rpx;
 }
 .big-text {
-  font-size: 36rpx;
-  font-weight: bold;
-  font-family: 'Courier New', Courier, monospace;
-  letter-spacing: 4rpx;
+  font-size: 28rpx;
+  font-family: 'Press Start 2P', 'Courier New', monospace;
+  letter-spacing: 2rpx;
   text-align: center;
   margin: 40rpx 0;
-  line-height: 2;
+  line-height: 2.5;
   -webkit-text-stroke: 2rpx #e67e22;
   -webkit-text-fill-color: transparent;
-  -webkit-font-smoothing: none;
-  font-smooth: never;
   image-rendering: pixelated;
 }
 .blink {
