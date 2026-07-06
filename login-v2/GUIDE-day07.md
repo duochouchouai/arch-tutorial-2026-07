@@ -129,9 +129,31 @@ git push origin feat/yourname
 - 递进式锁定改动顺序：domain → infrastructure → application，不要跳过 domain
 - 每个 commit 之后用 `git diff --stat` 数一下改了几个文件——这正是 comparing changes 要写的内容
 
-### 小提醒
+### uniapp 避坑指南（写参考答案时踩过的）
 
-- uniapp **`pages.json` 第一个页面是启动页**，把 `login` 放第一项，否则用户直接进入首页绕过登录。
+1. **`uni.request` 在 H5 模式返回的是单个对象 `{ statusCode, data }`，不是 `[err, res]` 元组。** 如果写了 `const [err, res] = await uni.request(...)` 会报 "intermediate value is not iterable"。
+
+2. **后端必须配 CORS。** 浏览器会拦截 localhost:5173 → localhost:3000 的跨域请求。在 Express 里加一段：
+   ```typescript
+   app.use((_req, res, next) => {
+     res.header('Access-Control-Allow-Origin', '*');
+     res.header('Access-Control-Allow-Headers', 'Content-Type');
+     if (_req.method === 'OPTIONS') return res.sendStatus(200);
+     next();
+   });
+   ```
+
+3. **Zod 需要 `npm install zod`，HBuilderX 不会自动装。** 编译报 `Failed to resolve import "zod"` 就装一下。
+
+4. **`pages.json` 第一个页面是启动页。** 把 login 放第一项，否则用户直接进入首页绕过登录。写参考答案的人自己都犯过这个错。
+
+5. **不要在 `pages/*.vue` 里直接 `import authApi`。** 页面只调 hooks，hooks 调 authApi。如果页面里出现了 `uni.request` 或 `import authApi`，架构就破了。
+
+6. **`<style scoped>` 里的 `@import url()` 可能不生效。** 需要加载外部字体（如像素字体）就写在 `index.html` 的 `<link>` 里或 `App.vue` 的全局样式中。
+
+7. **锁定倒计时需要"错误响应里携带 `lockedUntil`"。** 不能只抛 `throw new Error('已锁定')`——前端不知道要倒计多少秒。需要在错误对象上附加 `lockedUntil` 字段，auth-api 里解析它，hook 里用 `setInterval` 倒计时。
+
+8. **后端返回 401 时，前端如果先检查 `statusCode` 再读 body，会丢失 `lockedUntil`。** 先解析 `res.data`，判断 `success` 字段，不要依赖 HTTP 状态码。
 
 ---
 
