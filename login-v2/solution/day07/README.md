@@ -166,6 +166,41 @@ solution/day07/
 
 ---
 
+## Zod 校验放哪层？
+
+这是一个有争议的问题。培训板书说放 **domain** 层，参考答案放在 **presentation** 层。两者都对——取决于你如何理解"业务规则"。
+
+### 后端参考答案的做法：presentation 层
+
+```
+auth-schema.ts（presentation）
+  ↓ Zod 校验输入格式
+controller（presentation）
+  ↓ 调 use case（此时数据已合法）
+use case（application）
+  ↓ 做更深入的业务校验（唯一性、过期、权限等）
+```
+
+理由：`username 至少 3 字符`、`password 至少 6 字符` 是 **I/O 格式校验**——和 HTTP Body 解析是同一层职责。domain 层保持零依赖（不 import Zod）。
+
+### 培训板书的观点：domain 层
+
+理由：`密码至少 6 字符` 不管在前端、后端、CLI 都应该生效——它是 **领域约束**，不是视图逻辑。放在 domain 层可以保证所有入口共享同一份校验。
+
+### 怎么理解这个分歧？
+
+| | 放 presentation | 放 domain |
+|----|---------------|---------|
+| domain 是否零依赖 | ✅ 保持 | ❌ import Zod |
+| 多入口共享校验 | ❌ 每个入口自己写 | ✅ 一份 schema 全局生效 |
+| 校验的分类 | 格式校验 = I/O | 格式校验 = 领域规则 |
+
+**两种理解都是合理的。** 本参考答案选 presentation，不是因为"这才对"，而是因为如果你选了 domain，改动路径清晰：把 `auth-schema.ts` 移到 domain，presentation 改成 `import`。核心原则不变——**在哪里放不重要，重要的是你清楚"为什么放这里"**。
+
+> **遇到这种分歧，先对齐"校验属于哪层职责"，再动手。**
+
+---
+
 ## 项目 1：递进式锁定 → 对照要点
 
 只改了以下文件，其余文件与 day06 完全一致：
