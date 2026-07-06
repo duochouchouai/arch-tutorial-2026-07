@@ -150,7 +150,8 @@ solution/day07/
     ├── uni.scss
     ├── src/
     │   ├── domain/
-    │   │   └── user.ts
+    │   │   ├── user.ts
+    │   │   └── schemas.ts           ← Zod 校验
     │   ├── application/
     │   │   ├── useLogin.ts
     │   │   ├── useRegister.ts
@@ -168,36 +169,37 @@ solution/day07/
 
 ## Zod 校验放哪层？
 
-这是一个有争议的问题。在实际培训板书说放 **domain** 层，而参考答案放在 **presentation** 层。两者都对——取决于你如何理解"业务规则"。
+同一套 Zod schema，**后端放 presentation，前端放 domain**。不是自相矛盾，是前后端职责不同。
 
-### 后端参考答案的做法：presentation 层
+### 后端：presentation 层
 
-```
-auth-schema.ts（presentation）
-  ↓ Zod 校验输入格式
-controller（presentation）
-  ↓ 调 use case（此时数据已合法）
-use case（application）
-  ↓ 做更深入的业务校验（唯一性、过期、权限等）
-```
+`auth-schema.ts` 在 presentation，原因：
 
-理由：`username 至少 3 字符`、`password 至少 6 字符` 是 **I/O 格式校验**——和 HTTP Body 解析是同一层职责。domain 层保持零依赖（不 import Zod）。
+- 校验的是 HTTP Body → I/O 边界
+- domain 层保持**零依赖**（不 import 任何第三方库）
+- use case 收到的已经是干净参数
 
-### 培训板书的观点：domain 层
+### 前端：domain 层
 
-理由：`密码至少 6 字符` 不管在前端、后端、CLI 都应该生效——它是 **领域约束**，不是视图逻辑。放在 domain 层可以保证所有入口共享同一份校验。
+`src/domain/schemas.ts` 在 domain，原因：
 
-### 怎么理解这个分歧？
+- `密码至少 6 字符` 不管 H5、小程序都该生效 → **领域约束**
+- 前端 domain 无零依赖硬要求（User 类型已import）
+- hooks 调 authApi 前校验，不通过直接设 error，**不发网络请求**
 
-| | 放 presentation | 放 domain |
-|----|---------------|---------|
-| domain 是否零依赖 | ✅ 保持 | ❌ import Zod |
-| 多入口共享校验 | ❌ 每个入口自己写 | ✅ 一份 schema 全局生效 |
-| 校验的分类 | 格式校验 = I/O | 格式校验 = 领域规则 |
+### 后端 vs 前端对照
 
-**两种理解都是合理的。** 本参考答案选 presentation，不是因为"这才对"，而是因为如果你选了 domain，改动路径清晰：把 `auth-schema.ts` 移到 domain，presentation 改成 `import`。核心原则不变——**在哪里放不重要，重要的是你清楚"为什么放这里"**。
+| | 后端 | 前端 |
+|----|------|------|
+| Zod 文件 | `presentation/auth-schema.ts` | `src/domain/schemas.ts` |
+| 谁调校验 | controller（presentation） | hook（application） |
+| 调 API 时 | 参数已合法 | 参数已合法 |
 
-> **遇到这种分歧，建议先对齐"校验属于哪层职责"，再动手。**
+### 核心原则
+
+**不是"放哪层才对"，而是"为什么放这层"。** 参考答案后端强调 domain 零依赖 → 放 presentation。前端强调多入口共享规则 → 放 domain。两种选择都有充分理由——你在做的时候，关键是知道自己选了什么、为什么选。
+
+> **如果培训或 code review 要求统一，改一层 import 路径即可。架构的意义在于你把代码放在了经过思考的位置。**
 
 ---
 
@@ -356,7 +358,8 @@ curl -s -X POST http://localhost:3000/auth/login \
 | 文件 | 层级 | 说明 |
 |------|------|------|
 | `domain/user.ts` | domain | 类型与后端 `User` 完全一致 |
-| `application/useLogin.ts` | application | 调 `authApi.login()`，处理 token 和错误 |
+| `domain/schemas.ts` | domain | Zod 校验，hooks 调 API 前先验格式 |
+| `application/useLogin.ts` | application | Zod 校验 → `authApi.login()`，处理 token/错误 |
 | `application/useRegister.ts` | application | 调 `authApi.register()` |
 | `application/useForgotPassword.ts` | application | 调 `authApi.forgotPassword()` |
 | `infrastructure/auth-api.ts` | infrastructure | **全项目唯一出现 `uni.request` 的地方** |
