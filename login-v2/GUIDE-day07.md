@@ -129,7 +129,7 @@ git push origin feat/yourname
 - 递进式锁定改动顺序：domain → infrastructure → application，不要跳过 domain
 - 每个 commit 之后用 `git diff --stat` 数一下改了几个文件——这正是 comparing changes 要写的内容
 
-### uniapp 避坑指南（写参考答案时踩过的）
+### uniapp 避坑指南
 
 1. **`uni.request` 在 H5 模式返回的是单个对象 `{ statusCode, data }`，不是 `[err, res]` 元组。** 如果写了 `const [err, res] = await uni.request(...)` 会报 "intermediate value is not iterable"。
 
