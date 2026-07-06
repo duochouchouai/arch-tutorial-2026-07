@@ -39,8 +39,8 @@ function handleLogout() {
   text-align: center;
   margin: 40rpx 0;
   line-height: 2;
-  color: #444;
-  text-shadow: 1rpx 1rpx 0 #d4d4d4, 2rpx 2rpx 0 #e8e8e8;
+  color: #e67e22;
+  text-shadow: 1rpx 1rpx 0 #fdebd0, 2rpx 2rpx 0 #f5cba7;
 }
 .blink {
   animation: blink 1s step-end infinite;
