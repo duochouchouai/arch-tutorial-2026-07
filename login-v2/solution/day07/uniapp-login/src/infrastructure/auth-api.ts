@@ -17,14 +17,14 @@ interface ApiResponse<T> {
 }
 
 async function request<T>(path: string, body: Record<string, unknown>): Promise<T> {
-  const [err, res] = await uni.request({
+  const res = await uni.request({
     url: `${BASE_URL}${path}`,
     method: 'POST',
     header: { 'Content-Type': 'application/json' },
     data: body,
   });
 
-  if (err) {
+  if (res.statusCode < 200 || res.statusCode >= 300) {
     throw new Error('网络请求失败');
   }
 
