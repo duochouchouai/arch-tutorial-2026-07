@@ -39,13 +39,8 @@ function handleLogout() {
   text-align: center;
   margin: 40rpx 0;
   line-height: 2;
-  color: transparent;
-  -webkit-text-stroke: 2rpx #1a1a1a;
-  -webkit-text-fill-color: transparent;
-  background: linear-gradient(135deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #444;
+  text-shadow: 1rpx 1rpx 0 #d4d4d4, 2rpx 2rpx 0 #e8e8e8;
 }
 .blink {
   animation: blink 1s step-end infinite;
