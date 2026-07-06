@@ -3,10 +3,7 @@
     <view class="output">$ ssh login@arch-tutorial</view>
     <view class="output">Authenticated.</view>
     <view class="output"></view>
-    <view class="output">$ echo "恭喜你完成架构学习"</view>
-    <view class="big-text">恭喜你完成架构学习</view>
-    <view class="output">$ echo "祝你在梯度动力团队收获技术，收获成长！"</view>
-    <view class="big-text">祝你在梯度动力团队收获技术，收获成长！</view>
+    <view class="big-text">恭喜你完成架构学习<br/>祝你在梯度动力团队收获技术，收获成长！</view>
     <view class="output"></view>
     <view class="output blink">$ █</view>
     <view class="output"></view>
@@ -35,14 +32,20 @@ function handleLogout() {
   margin-bottom: 8rpx;
 }
 .big-text {
-  font-size: 32rpx;
-  font-weight: normal;
-  color: #1a1a1a;
+  font-size: 36rpx;
+  font-weight: bold;
   font-family: 'Courier New', Courier, monospace;
   letter-spacing: 4rpx;
-  text-shadow: 2rpx 2rpx 0 #e0e0e0;
-  margin: 16rpx 0 32rpx 0;
+  text-align: center;
+  margin: 40rpx 0;
   line-height: 2;
+  color: transparent;
+  -webkit-text-stroke: 2rpx #1a1a1a;
+  -webkit-text-fill-color: transparent;
+  background: linear-gradient(135deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 .blink {
   animation: blink 1s step-end infinite;
