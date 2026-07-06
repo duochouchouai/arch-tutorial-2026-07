@@ -13,7 +13,13 @@
 </template>
 
 <script setup lang="ts">
-function handleLogout() {
+import { authApi } from '../../src/infrastructure/auth-api';
+
+async function handleLogout() {
+  const token = uni.getStorageSync('remember_token');
+  if (token) {
+    try { await authApi.logout(token); } catch {}
+  }
   uni.removeStorageSync('remember_token');
   uni.navigateTo({ url: '/pages/login/login' });
 }

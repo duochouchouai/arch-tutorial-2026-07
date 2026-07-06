@@ -9,6 +9,7 @@
     <text v-if="countdown > 0" class="cmd-countdown">账户已锁定，{{ countdown }} 秒后可重试</text>
     <navigator url="/pages/register/register" class="cmd-link">$ register --new-account</navigator>
     <navigator url="/pages/forgot-password/forgot-password" class="cmd-link">$ passwd --forgot</navigator>
+    <navigator url="/pages/oauth/oauth" class="cmd-link">$ oauth --login</navigator>
   </view>
 </template>
 

@@ -69,3 +69,20 @@ export const authApi = {
     return request('/forgot-password', { email });
   },
 };
+
+  autoLogin(token: string): Promise<User> {
+    return request<User>('/auto-login', { token });
+  },
+
+  resetPassword(token: string, newPassword: string): Promise<void> {
+    return request('/reset-password', { token, newPassword });
+  },
+
+  oauthLogin(provider: string, code: string): Promise<User> {
+    return request<User>('/oauth', { provider, code });
+  },
+
+  logout(token: string): Promise<void> {
+    return request('/logout', { token });
+  },
+};

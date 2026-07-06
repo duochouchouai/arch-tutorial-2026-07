@@ -23,6 +23,18 @@
 			"style": {
 				"navigationBarTitleText": "忘记密码"
 			}
+		},
+		{
+			"path": "pages/reset-password/reset-password",
+			"style": {
+				"navigationBarTitleText": "重置密码"
+			}
+		},
+		{
+			"path": "pages/oauth/oauth",
+			"style": {
+				"navigationBarTitleText": "第三方登录"
+			}
 		}
 	],
 	"globalStyle": {
