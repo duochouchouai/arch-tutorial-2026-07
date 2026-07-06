@@ -13,14 +13,12 @@
 </template>
 
 <script setup lang="ts">
-import { authApi } from '../../src/infrastructure/auth-api';
+import { useLogout } from '../../src/application/useLogout';
+
+const { logout } = useLogout();
 
 async function handleLogout() {
-  const token = uni.getStorageSync('remember_token');
-  if (token) {
-    try { await authApi.logout(token); } catch {}
-  }
-  uni.removeStorageSync('remember_token');
+  await logout();
   uni.navigateTo({ url: '/pages/login/login' });
 }
 </script>

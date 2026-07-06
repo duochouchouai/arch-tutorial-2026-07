@@ -12,25 +12,16 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { authApi } from '../../src/infrastructure/auth-api';
+import { useResetPassword } from '../../src/application/useResetPassword';
 
 const token = ref('');
 const newPassword = ref('');
-const loading = ref(false);
-const error = ref('');
-const done = ref(false);
+const { loading, error, done, reset } = useResetPassword();
 
 async function handleReset() {
-  loading.value = true;
-  error.value = '';
   try {
-    await authApi.resetPassword(token.value, newPassword.value);
-    done.value = true;
-  } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : '重置失败';
-  } finally {
-    loading.value = false;
-  }
+    await reset(token.value, newPassword.value);
+  } catch {}
 }
 </script>
 

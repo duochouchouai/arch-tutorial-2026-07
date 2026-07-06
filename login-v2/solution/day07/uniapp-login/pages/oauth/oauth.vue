@@ -9,18 +9,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { authApi } from '../../src/infrastructure/auth-api';
+import { useOAuth } from '../../src/application/useOAuth';
 
-const error = ref('');
+const { loading, error, login } = useOAuth();
 
 async function handleOAuth(provider: string) {
   try {
-    await authApi.oauthLogin(provider, 'demo-code');
+    await login(provider);
     uni.navigateTo({ url: '/pages/index/index' });
-  } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : 'OAuth 登录失败';
-  }
+  } catch {}
 }
 </script>
 
