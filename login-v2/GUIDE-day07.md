@@ -151,9 +151,8 @@ git push origin feat/yourname
 
 6. **`<style scoped>` 里的 `@import url()` 可能不生效。** 需要加载外部字体（如像素字体）就写在 `index.html` 的 `<link>` 里或 `App.vue` 的全局样式中。
 
-7. **锁定倒计时需要"错误响应里携带 `lockedUntil`"。** 不能只抛 `throw new Error('已锁定')`——前端不知道要倒计多少秒。需要在错误对象上附加 `lockedUntil` 字段，auth-api 里解析它，hook 里用 `setInterval` 倒计时。
 
-8. **后端返回 401 时，前端如果先检查 `statusCode` 再读 body，会丢失 `lockedUntil`。** 先解析 `res.data`，判断 `success` 字段，不要依赖 HTTP 状态码。
+7. **不要用 HTTP 状态码判断成败。** 后端 400/401 也是正常 JSON 响应。先解析 `res.data`，靠 `success` 字段做分支，否则错误信息会丢。
 
 ---
 
