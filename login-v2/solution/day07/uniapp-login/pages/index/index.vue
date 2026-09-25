@@ -1,0 +1,68 @@
+<template>
+  <view class="terminal">
+    <view class="output">$ ssh login@arch-tutorial</view>
+    <view class="output">Authenticated.</view>
+    <view class="output"></view>
+    <view class="big-text">Congrats! Architecture Complete.<br/>Welcome to the team.</view>
+    <view class="output"></view>
+    <view class="output blink">$ █</view>
+    <view class="output"></view>
+    <view class="prompt">$ exit</view>
+    <button @click="handleLogout" class="cmd-btn">$ logout</button>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { useLogout } from '../../src/application/useLogout';
+
+const { logout } = useLogout();
+
+async function handleLogout() {
+  await logout();
+  uni.navigateTo({ url: '/pages/login/login' });
+}
+</script>
+
+<style lang="scss" scoped>
+.terminal {
+  background: #ffffff;
+  min-height: 100vh;
+  padding: 60rpx 40rpx;
+  font-family: 'Courier New', Courier, monospace;
+}
+.output {
+  color: #555;
+  font-size: 28rpx;
+  margin-bottom: 8rpx;
+}
+.big-text {
+  font-size: 36rpx;
+  font-family: 'Press Start 2P', 'Courier New', monospace;
+  text-align: center;
+  margin: 40rpx 0;
+  line-height: 2.5;
+  color: #e67e22;
+  -webkit-text-stroke: 3rpx #d35400;
+  -webkit-text-fill-color: transparent;
+}
+.blink {
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+.prompt {
+  color: #555;
+  font-size: 28rpx;
+  margin-top: 32rpx;
+}
+.cmd-btn {
+  background: #ffffff;
+  border: 2rpx solid #333;
+  color: #1a1a1a;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 28rpx;
+  margin-top: 16rpx;
+  padding: 16rpx;
+}
+</style>
