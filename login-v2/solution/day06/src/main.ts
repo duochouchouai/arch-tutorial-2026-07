@@ -10,7 +10,7 @@
  */
 import express from 'express'
 import type { DatabaseSync } from 'node:sqlite'
-import { loadConfig, type Config } from './config/index'
+import { loadConfig, loadEnvFile, type Config } from './config/index'
 import {
   CryptoIdGenerator,
   InMemoryEventBus,
@@ -59,6 +59,8 @@ export function createApp(config: Config): AppBundle {
 
 // 直接运行才监听端口（被测试 import 时不启动服务）
 if (require.main === module) {
+  // 本地开发把配置放 .env（照 .env.example 抄一份）；.env 永不进仓库
+  loadEnvFile()
   const config = loadConfig()
   const { app } = createApp(config)
   app.listen(config.port, () => {

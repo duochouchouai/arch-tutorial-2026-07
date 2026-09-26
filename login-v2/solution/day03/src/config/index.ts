@@ -6,6 +6,7 @@
  * 端口不是数字、bcrypt 轮数是负数，都应该在**启动时**炸，
  * 而不是在某个深夜的请求里才暴露。默认值让零配置也能跑起来。
  */
+import { existsSync } from 'node:fs'
 import { z } from 'zod'
 
 export const ConfigSchema = z.object({
@@ -25,4 +26,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     bcryptRounds: env['BCRYPT_ROUNDS'],
     nodeEnv: env['NODE_ENV'],
   })
+}
+
+/**
+ * 本地开发便利：工作目录若存在 .env 就加载（已设置的环境变量优先，不会被覆盖）。
+ * 仓库只提交 .env.example 模板；真实的 .env 写在每个人本机、永不进版本库
+ * （数据库路径、连接串这类本机配置都放那里，代码与仓库保持环境无关）。
+ * 生产不依赖它 —— 部署平台的环境变量会直接注入。
+ */
+export function loadEnvFile(path = '.env'): void {
+  if (!existsSync(path)) return
+  process.loadEnvFile(path)
 }

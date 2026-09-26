@@ -11,7 +11,7 @@
  * Day 05 起签名开始收 config，组合根始终是唯一读配置的代码。
  */
 import express from 'express'
-import { loadConfig } from './config/index'
+import { loadConfig, loadEnvFile } from './config/index'
 import { errorHandler } from './modules/shared/index'
 import { createAuthModule } from './modules/auth/index'
 
@@ -37,6 +37,8 @@ export function createApp(): AppBundle {
 
 // 直接运行才监听端口（被测试 import 时不启动服务）
 if (require.main === module) {
+  // 本地开发把配置放 .env（照 .env.example 抄一份）；.env 永不进仓库
+  loadEnvFile()
   const config = loadConfig()
   const { app } = createApp()
   app.listen(config.port, () => {

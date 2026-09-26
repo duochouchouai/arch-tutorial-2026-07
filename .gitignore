@@ -1,3 +1,6 @@
 node_modules/
 *.db
 .claude/
+
+# 本机配置（照 .env.example 抄一份；真实配置永不提交）
+.env
