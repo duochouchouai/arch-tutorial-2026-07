@@ -1,446 +1,157 @@
-# GUIDE-day02 — 忘记密码 + 重置密码
+# GUIDE-day02 — 值对象与共享错误体系
 
-预计时间：**40 分钟**（概念 5 分钟 + 手打 30 分钟 + 验证 5 分钟）
+预计时间：**120 分钟**（概念 25 + 手打 70 + 验收 25）
 
----
-
-## 📖 今天做什么
-
-在 day01 的基础上增加「忘记密码 / 重置密码」功能。
-
-和 v1 day03 做同一个功能，但这次：
-- 用 `crypto.randomBytes` 生成 token（对比 v1 的 `Math.random()`）
-- token 1 小时过期（对比 v1 的永久有效）
-- 不泄露邮箱是否注册（对比 v1 的「该邮箱未注册」）
-- 重置后 token 立即失效（对比 v1 的 token 可重复使用）
-- token 存储和校验都用参数化查询（对比 v1 的字符串拼接）
-
-功能入口：
-- `POST /auth/forgot-password` — 提交邮箱，生成重置 token（模拟发邮件）
-- `POST /auth/reset-password` — 提交 token + 新密码，重置密码
+> 手打完再对照 `solution/day02/`。
 
 ---
 
-## 🗑️ v1 回顾：Day 03 的问题
+## 📖 概念
 
-| 问题 | v1 写法 | 后果 |
-|------|---------|------|
-| ❌ `Math.random()` 生成 token | `Math.random().toString(36).substring(2)` | 可预测，攻击者能伪造重置链接 |
-| ❌ token 永久有效 | 存进去就没人管 | 三个月前的重置链接还能用 |
-| ❌ 泄露邮箱是否注册 | `if (!user) { '该邮箱未注册' }` | 攻击者可批量枚举有效邮箱 |
-| ❌ token 重置后只置空 | `reset_token = ''` | 和 `NULL` 语义混乱 |
-| ❌ SQL 拼接 | `WHERE email = '${email}'` | 注入攻击 |
+### 1. 「一段字符串」和「一个邮箱」不是同一种东西
 
-今天 v2 的实现会解决每一个问题。
+v1 的注册校验长这样（`presentation/auth-schema.ts` 里的 zod schema + `auth-controller.ts` 里的 if/else）：
 
----
-
-## 🎯 架构变化
-
-day01 → day02 的改动分布：
-
-```
-src/
-├── domain/
-│   └── user-repository.ts        ← 加 3 个新方法（接口）
-├── application/
-│   ├── forgot-password.ts         ← 新增（用例）
-│   └── reset-password.ts          ← 新增（用例）
-├── infrastructure/
-│   ├── database.ts                ← 表加 2 列
-│   └── user-repository-sqlite.ts  ← 实现 3 个新方法
-├── presentation/
-│   ├── auth-schema.ts             ← 加 2 个 schema
-│   └── auth-controller.ts         ← 加 2 个路由
-└── index.ts                       ← 注册新用例
-```
-
-**一共改了 7 个文件，新增 2 个文件。** 每层只改自己该改的部分：
-- domain：只加接口方法签名
-- application：只写业务逻辑
-- infrastructure：只写 SQL
-- presentation：只写路由和校验
-
----
-
-## ✍️ 今天要改的文件
-
-### Step 1 — domain/user-repository.ts（加 3 个接口方法）
-
-找到 `UserRepository` 接口，在 `create` 方法后面加上：
-
-```typescript
-export interface UserRepository {
-  findById(id: number): Promise<User | null>;
-  findByUsername(username: string): Promise<UserWithPassword | null>;
-  findByEmail(email: string): Promise<UserWithPassword | null>;   // ← 新增
-  create(input: CreateUserInput): Promise<User>;
-
-  // 忘记密码 / 重置密码                                           // ← 新增
-  updateResetToken(userId: number, token: string, expiresAt: string): Promise<void>;
-  findByResetToken(token: string): Promise<UserWithPassword | null>;
-  updatePassword(userId: number, newHashedPassword: string): Promise<void>;
+```ts
+// v1：形状、格式、强度全糊在一起；错误用手拼字符串
+if (!/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+  errors.push('邮箱格式不正确')
 }
 ```
 
-**📝 先定义接口，再实现。** 这就是依赖倒置——domain 层先声明「我需要什么」，infrastructure 层再来实现。
+三个后果：邮箱这个「概念」在系统里不存在，只有裸 `string`；
+`Email` 的规则（小写、长度、只有一个 @）散落多处；
+一旦 `Email` 在某个角落被赋成 `'  '`，没有任何机制拦住它。
 
-注意 `findByResetToken` 的查询预期会同时校验过期时间（`WHERE reset_token = ? AND reset_token_expires_at > now`），但这个逻辑在基础设施层实现——接口只声明行为，不假设实现方式。
+**值对象（Value Object）**把「一个合法的邮箱」变成类型系统里的一等公民：
 
----
-
-### Step 2 — infrastructure/database.ts（表加 2 列）
-
-在 `CREATE TABLE users` 的 SQL 末尾加上：
-
-```sql
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  username TEXT UNIQUE NOT NULL,
-  email TEXT NOT NULL DEFAULT '',
-  hashed_password TEXT NOT NULL,
-  reset_token TEXT,              ← 新增
-  reset_token_expires_at TEXT    ← 新增
-)
+```ts
+const email = Email.create('Alice@Example.com')   // 不合法就抛 ValidationError
+email.value                                        // 'alice@example.com'（归一化后）
 ```
 
-**注意：** 如果你已经跑过 day01 的代码，数据库文件已经存在，新列不会自动加上。你需要**删除 `login-v2.db` 再启动**——这就是为什么生产环境需要数据库迁移脚本。
+同一天引入的还有 `Phone`（`/^1[3-9]\d{9}$/`）、`Password`（8-64 位、含字母和数字）、`Code`（6 位数字）。
 
-但在本教程中，因为每天都是独立练习，删库重来是最简单的。
+### 2. 值对象的两条硬纪律
 
----
-
-### Step 3 — infrastructure/user-repository-sqlite.ts（实现 3 个新方法）
-
-在 `create` 方法后面加上：
-
-```typescript
-async findByEmail(email: string): Promise<UserWithPassword | null> {
-  const db = getDatabase();
-  const row = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRow | undefined;
-  return row ? toUserWithPassword(row) : null;
-}
-
-async updateResetToken(userId: number, token: string, expiresAt: string): Promise<void> {
-  const db = getDatabase();
-  db.prepare('UPDATE users SET reset_token = ?, reset_token_expires_at = ? WHERE id = ?')
-    .run(token, expiresAt, userId);
-}
-
-async findByResetToken(token: string): Promise<UserWithPassword | null> {
-  const db = getDatabase();
-  const row = db.prepare(
-    'SELECT * FROM users WHERE reset_token = ? AND reset_token_expires_at > ?',
-  ).get(token, new Date().toISOString()) as UserRow | undefined;
-  return row ? toUserWithPassword(row) : null;
-}
-
-async updatePassword(userId: number, newHashedPassword: string): Promise<void> {
-  const db = getDatabase();
-  db.prepare(
-    'UPDATE users SET hashed_password = ?, reset_token = NULL, reset_token_expires_at = NULL WHERE id = ?',
-  ).run(newHashedPassword, userId);
+```ts
+export class Email {
+  readonly value: string
+  private constructor(value: string) { this.value = value; Object.freeze(this) }
+  static create(raw: string): Email { /* 校验 → ValidationError 或 fromTrusted */ }
+  static fromTrusted(value: string): Email { return new Email(value) }  // 数据源可信时用
+  toString(): string { return this.value }
 }
 ```
 
-**📝 关键设计点：**
+- `private constructor`：**不给**「绕过校验构造一个邮箱」的机会；
+- `Object.freeze(this)`：已构造的值不可变（值对象的定义）；
+- `fromTrusted` 的命名即文档：只在「数据源可信」时用（DB 行、已校验的输入）。
 
-1. **`findByResetToken` 同时校验过期**：SQL 的 `WHERE` 条件里直接比较 `reset_token_expires_at > ?`。token 过期了直接查不到，等价于「无效」。不需要在应用层再手动判断。
+### 3. 错误是领域概念，不是 HTTP 概念
 
-2. **`updatePassword` 同时清空 token**：重置密码后 `reset_token` 和 `reset_token_expires_at` 都设为 `NULL`。同一 token 不能重复使用——对比 v1 的 `reset_token = ''`。
+```ts
+export class AppError extends Error {
+  readonly code: string          // 稳定错误码：前端按码分支，不按文案
+  readonly statusCode: number    // 建议状态码（由表现层采纳，不是强制）
+  readonly fieldErrors?: FieldErrors   // 字段级错误：{ email: ['邮箱格式不正确'] }
+}
+```
 
-3. **所有查询都是参数化 `?` 占位符**：和 day01 保持一致，没有新增任何 SQL 注入入口。
+- 家族：`ValidationError`(400) / `UnauthorizedError`(401) / `ConflictError`(409) / `NotFoundError`(404)；
+- **预期外错误不要包装**：程序 bug 就让 `errorHandler` 兜成 500 —— 把未知错误包装成 `AppError`，等于把「程序有 bug」伪装成「用户输入不对」；
+- `errorHandler` 是**唯一**把错误翻译成 HTTP 的地方（写在 `shared/infrastructure/error-handler.ts`）。
+
+### 4. 响应信封：前后端的共同契约
+
+```ts
+成功：{ success: true,  data: ... }
+失败：{ success: false, message: '...', fieldErrors?: { field: ['...'] } }
+```
+`fail()` 永远带上 `fieldErrors` 键（值为 `undefined`），JSON 序列化时自动消失 —— 前端只需认一种形状。
 
 ---
 
-### Step 4 — 新建 application/forgot-password.ts
+## ✍️ 手打目标
 
-创建新文件 `src/application/forgot-password.ts`：
+### 1. `src/modules/shared/domain/errors/`
 
-```typescript
-import crypto from 'node:crypto';
-import { UserRepository } from '../domain/user-repository';
+- `app-error.ts`：`FieldErrors` 类型、`AppErrorOptions`、`AppError`（注意 `this.name = new.target.name`）；
+- `validation-error.ts`：`constructor(fieldErrors: FieldErrors, message = '输入校验未通过')`；
+- `conflict-error.ts` / `not-found-error.ts` / `unauthorized-error.ts`：各自默认文案与状态码；
+- `index.ts`：barrel。
 
-export class ForgotPasswordUseCase {
-  constructor(private readonly userRepository: UserRepository) {}
+### 2. `src/modules/shared/schemas/envelope.ts`
 
-  async execute(email: string): Promise<void> {
-    const user = await this.userRepository.findByEmail(email);
+`EnvelopeSchema`（zod union）+ `ok<T>(data)` + `fail(message, fieldErrors?)`。
 
-    if (user) {
-      const token = crypto.randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+### 3. `src/modules/shared/infrastructure/error-handler.ts`
 
-      await this.userRepository.updateResetToken(user.id, token, expiresAt);
-
-      console.log('重置链接: http://localhost:3000/auth/reset-password?token=' + token);
-      console.log('（模拟发邮件，生产环境应接入邮件服务）');
-    }
-    // 邮箱不存在 → 什么都不做，但仍然返回成功
+```ts
+export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
+  if (err instanceof AppError) {
+    res.status(err.statusCode).json(fail(err.message, err.fieldErrors))
+    return
   }
+  console.error('[unexpected error]', err)      // 全量现场进日志
+  res.status(500).json(fail('服务器内部错误'))   // 响应只给一句话
 }
 ```
+（`_next` 不能省略：Express 靠参数个数识别错误中间件。）
 
-**📝 v1 vs v2 的关键差异：**
+### 4. `src/modules/auth/domain/value-objects/`（四个值对象）
 
-| 方面 | v1（Day 03） | v2（Day 02） |
-|------|-------------|-------------|
-| 随机数 | `Math.random()` | `crypto.randomBytes(32)` |
-| 安全性 | 可预测，~10^15 种 | 密码学安全，2^256 种 |
-| 过期时间 | ❌ 无 | ✅ 1 小时 |
-| 邮箱枚举 | ❌ 泄露是否注册 | ✅ 统一返回「已发送」 |
-| 发邮件 | ❌ 只打 log | ✅ 只打 log（暂同，留待后续改进） |
+| 值对象 | 规则 |
+|--------|------|
+| `Email` | 至少一个小写 `@` 恰好一个、域名含点、≤254、无空白；**不静默 trim/小写**，非法就抛 |
+| `Phone` | `/^1[3-9]\d{9}$/` |
+| `Password` | 8-64 位、至少一个字母 + 一个数字（`create` 带可选参数 `{ minLength, maxLength, requireComplexity }`，Login 用宽松档，Day 04 你会用到） |
+| `Code` | `/^\d{6}$/` |
 
----
+每个值对象配一个 `xxx.test.ts`（边界：空串、超长、非法字符、合法值归一化）。
 
-### Step 5 — 新建 application/reset-password.ts
+### 5. 共享测试
 
-创建新文件 `src/application/reset-password.ts`：
+- `src/modules/shared/infrastructure/error-handler.test.ts`：AppError → 400 + fieldErrors；`ConflictError` → 409；未知错误 → 500 且**不含**内部信息（如 SQL 片段）。
 
-```typescript
-import bcrypt from 'bcryptjs';
-import { UserRepository } from '../domain/user-repository';
-import { ValidationError, UnauthorizedError } from '../shared/errors';
+### 6. `src/main.ts` 挂上 `errorHandler`
 
-export interface ResetPasswordInput {
-  token: string;
-  newPassword: string;
-}
-
-export class ResetPasswordUseCase {
-  constructor(private readonly userRepository: UserRepository) {}
-
-  async execute(input: ResetPasswordInput) {
-    if (!input.newPassword || input.newPassword.length < 6) {
-      throw new ValidationError('密码至少6个字符');
-    }
-
-    const user = await this.userRepository.findByResetToken(input.token);
-    if (!user) {
-      throw new UnauthorizedError('重置链接无效或已过期');
-    }
-
-    const hashedPassword = await bcrypt.hash(input.newPassword, 10);
-    await this.userRepository.updatePassword(user.id, hashedPassword);
-  }
-}
-```
-
-**📝 两层校验：**
-
-1. **参数校验**（代码层）：密码长度 `>= 6`，不够则抛 `ValidationError`
-2. **业务校验**（数据库层）：`findByResetToken` 查不到（token 无效或过期），抛 `UnauthorizedError`
-
-两层校验分工明确——代码层管「输入格式」，数据库层管「业务状态」。不像 v1 全部堆在 handler 里。
-
----
-
-### Step 6 — presentation/auth-schema.ts（加 2 个 schema）
-
-在文件末尾加上：
-
-```typescript
-export const forgotPasswordSchema = z.object({
-  email: z.string().email('请输入正确的邮箱地址'),
-});
-
-export const resetPasswordSchema = z.object({
-  token: z.string().min(1, 'token 不能为空'),
-  newPassword: z.string().min(6, '密码至少6个字符'),
-});
+```ts
+app.use('/auth', auth.createRouter())
+app.use(errorHandler)     // 必须在所有路由之后
 ```
 
 ---
 
-### Step 7 — presentation/auth-controller.ts（改签名 + 加路由）
-
-有两处改动：
-
-**① 函数签名（第 4-6 行附近）：** 导入新 schema 和 use case，并加新参数：
-
-```typescript
-import { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } from './auth-schema';
-import { RegisterUserUseCase } from '../application/register-user';
-import { LoginUserUseCase } from '../application/login-user';
-import { ForgotPasswordUseCase } from '../application/forgot-password';   // ← 新增
-import { ResetPasswordUseCase } from '../application/reset-password';     // ← 新增
-import { AppError } from '../shared/errors';
-
-export function createAuthController(
-  registerUseCase: RegisterUserUseCase,
-  loginUseCase: LoginUserUseCase,
-  forgotPasswordUseCase: ForgotPasswordUseCase,   // ← 新增
-  resetPasswordUseCase: ResetPasswordUseCase,     // ← 新增
-): Router {
-```
-
-**② 路由注册（在 login 路由后面）：** 加两个新路由：
-
-```typescript
-  router.post('/forgot-password', async (req: Request, res: Response) => {
-    try {
-      const { email } = forgotPasswordSchema.parse(req.body);
-      await forgotPasswordUseCase.execute(email);
-      res.json({ success: true, message: '重置链接已发送到您的邮箱' });
-    } catch (error) {
-      handleError(res, error);
-    }
-  });
-
-  router.post('/reset-password', async (req: Request, res: Response) => {
-    try {
-      const input = resetPasswordSchema.parse(req.body);
-      await resetPasswordUseCase.execute(input);
-      res.json({ success: true, message: '密码重置成功' });
-    } catch (error) {
-      handleError(res, error);
-    }
-  });
-```
-
-注意到 `forgot-password` 的 controller 代码只有 9 行——因为业务逻辑全在 use case 里。Controller 只管「拿请求 → 调用例 → 返回响应」。
-
----
-
-### Step 8 — src/index.ts（注册新用例）
-
-在组合根中，登录用例下面加上：
-
-```typescript
-import { ForgotPasswordUseCase } from './application/forgot-password';
-import { ResetPasswordUseCase } from './application/reset-password';
-
-const forgotPasswordUseCase = new ForgotPasswordUseCase(userRepository);
-const resetPasswordUseCase = new ResetPasswordUseCase(userRepository);
-```
-
-然后更新路由注册，传入新参数：
-
-```typescript
-app.use('/auth', createAuthController(
-  registerUseCase,
-  loginUseCase,
-  forgotPasswordUseCase,
-  resetPasswordUseCase,
-));
-```
-
-**组合根又变长了**——但这是好事。所有依赖关系都集中在一个地方，一目了然。不看代码正文，只看 `index.ts` 就知道整个应用有哪些组件。
-
----
-
-## ✅ 验证
+## ✅ 验收点
 
 ```bash
-# 确保删掉之前 day01 的数据库（如果有）
-rm login-v2.db
-
-# 启动
-npm start
-
-# 测试注册
-curl -X POST http://localhost:3000/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"alice","password":"123456","email":"alice@example.com"}'
-# → {"success":true,"data":{"id":1,"username":"alice","email":"alice@example.com"}}
-
-# 测试忘记密码（你会看到服务端日志打印出重置链接）
-curl -X POST http://localhost:3000/auth/forgot-password \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"alice@example.com"}'
-# → {"success":true,"message":"重置链接已发送到您的邮箱"}
-
-# 从服务端日志复制 token，替换下面 <TOKEN>，测试重置
-curl -X POST http://localhost:3000/auth/reset-password \
-  -H 'Content-Type: application/json' \
-  -d '{"token":"<TOKEN>","newPassword":"654321"}'
-# → {"success":true,"message":"密码重置成功"}
-
-# 用新密码登录
-curl -X POST http://localhost:3000/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"alice","password":"654321"}'
-# → {"success":true,"data":{"id":1,"username":"alice","email":"alice@example.com"}}
-
-# 用旧密码登录（应该失败）
-curl -X POST http://localhost:3000/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"alice","password":"123456"}'
-# → {"success":false,"message":"用户名或密码错误"}
-
-# 测试未注册邮箱（不应泄露邮箱是否存在）
-curl -X POST http://localhost:3000/auth/forgot-password \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"nobody@example.com"}'
-# → {"success":true,"message":"重置链接已发送到您的邮箱"}（和注册邮箱返回一样）
+cd solution/day02 && npm install && npm run gate
 ```
+
+| 检查 | 期望 |
+|------|------|
+| `npm test` | **9 个文件 / 37 个测试**全过 |
+| `Email.create('abc')` | 抛 `ValidationError`，`fieldErrors` 指向 `email` |
+| `errorHandler` 测试 | 未知错误的响应体**不含** `SQLITE` / 堆栈 |
+| 纪律自查 | `grep -rn "statusCode = 400" src/modules/auth` 应无结果（状态码只在 shared 错误类里声明） |
 
 ---
 
-## 💡 今天学到了什么
+## 🚨 违规 → 症状
 
-### 对比 v1 的同一个功能
-
-| 对比项 | v1（屎山） | v2（清洁架构） |
-|--------|-----------|--------------|
-| Token 生成 | `Math.random()` | `crypto.randomBytes(32)` |
-| Token 过期 | 永久有效 | 1 小时 + SQL 层校验 |
-| 邮箱枚举 | 泄露是否注册 | 统一返回「已发送」 |
-| 重置后 token | 置空字符串 | 设为 NULL + 返回码保护 |
-| 错误处理 | 无 | ValidationError + UnauthorizedError |
-| 数据库 | 字符串拼接 | 参数化查询 |
-| 代码分布 | 全在 main.js | domain → application → infrastructure → presentation 各司其职 |
-
-### 观察：清洁架构下的「改动冲击波」
-
-回顾今天改动的 7 个文件，你会发现一个规律：
-
-```
-domain/user-repository    加方法签名
-          ↓                     3 个方法「流经」每一层
-infrastructure           实现 SQL
-          ↓
-application              写业务逻辑
-          ↓
-presentation             加路由
-```
-
-每层只改了一点点，而且改的都是自己该负责的部分。**这就是关注点分离的效果。**
-
-对比 v1：v1 加忘记密码时，开发者在 `main.js` 里加了 43 行代码，全部堆在一个文件里。没有「在哪加」「加什么」的指引——想加在哪就加在哪。
-
-### 延伸思考
-
-- `forgot-password` 返回的 `message` 写死了「重置链接已发送到您的邮箱」，不区分邮箱是否存在。如果产品经理要求「已注册的邮箱返回已发送，未注册的提示先去注册」，你会改哪一层？
-- 如果要把 token 过期时间从 1 小时改成 30 分钟，改哪个文件？
-- 如果要把 `console.log` 模拟发邮件换成真实的邮件服务，应该在哪一层引入变化？
-- 对比 v1 day03 的 `Math.random()` 和这里的 `crypto.randomBytes(32)`——谁会在意这点区别？v1 的开发者知道 `Math.random()` 不安全吗？
+| 违规 | 症状 |
+|------|------|
+| 用 `type Email = string` 代替值对象 | 每个入口都要重新校验邮箱；`'  '` 也能一路进 DB |
+| 值对象 `public constructor` | 有人 `new Email('乱写')` 绕过校验，规则形同虚设 |
+| 在 controller 里 `res.status(400).json(...)` 手写错误 | 错误响应形状开始漂移（有人带 `fieldErrors`、有人不带）；前端只能靠猜 |
+| 把未知错误包装成 `AppError('服务器错误', 500)` | 真 bug 被伪装成「业务错误」，日志里看不到堆栈，排查靠猜 |
+| 错误文案当契约（前端 `if (message === '密码错误')`） | 改一句文案就崩前端；正确姿势是认 `code` / `statusCode` |
 
 ---
 
-## 📁 参考 solution
+## 🔭 与真实仓库（NKDate）的对应
 
-`solution/day02/` 包含了完整的 day01 + day02 代码，可直接运行。
-
-```
-solution/day02/
-├── src/
-│   ├── index.ts                                ← 组合根（4 个用例）
-│   ├── application/
-│   │   ├── register-user.ts                    ← 不变
-│   │   ├── login-user.ts                       ← 不变
-│   │   ├── forgot-password.ts                  ← ★ 新增
-│   │   └── reset-password.ts                   ← ★ 新增
-│   ├── domain/
-│   │   ├── user.ts                             ← 不变
-│   │   └── user-repository.ts                  ← ＋3 个方法
-│   ├── infrastructure/
-│   │   ├── database.ts                         ← ＋2 列
-│   │   └── user-repository-sqlite.ts           ← ＋3 个方法、1 条过期查询
-│   ├── presentation/
-│   │   ├── auth-schema.ts                      ← ＋2 个 schema
-│   │   └── auth-controller.ts                  ← ＋2 个路由
-│   └── shared/errors.ts                        ← 不变
-```
-
-卡住时对照，但建议先自己试。
+- 真实仓库的 `domain/value-objects/` 同构：`private constructor` + `Object.freeze` + `create` / `fromTrusted` 三件套；
+- 错误基类同样是 `code + statusCode + fieldErrors`，但**每模块的错误类放自己模块**（如 `auth/domain/errors/auth.errors.ts`，Day 05 出现）；
+- `errorHandler` 在真实仓库里还接 Sentry 之类的上报 —— 但「响应不泄露内部信息」这条永远不变。

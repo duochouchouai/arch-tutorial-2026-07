@@ -1,381 +1,149 @@
-# GUIDE-day06 — 退出登录 + 单元测试
+# GUIDE-day06 — 多模块协作与架构守卫
 
-预计时间：**50 分钟**（退出登录 15 分钟 + 测试 30 分钟 + 验证 5 分钟）
+预计时间：**150 分钟**（概念 30 + 手打 90 + 验收 30）
 
----
-
-## 📖 今天做什么
-
-两件事：
-
-1. **退出登录** — `POST /auth/logout`，销毁记住我 token，让自动登录失效
-2. **引入单元测试** — 用 vitest 为 application 层的 use case 写测试
+> 手打完再对照 `solution/day06/`（本教程的「终态」基线：Day 07 从它派生）。
 
 ---
 
-## 🗑️ v1 回顾：Day 04 和 Day 06 的问题
+## 📖 概念
 
-| 问题 | v1 表现 | 后果 |
-|------|---------|------|
-| ❌ 无法退出 | 记住我 token 一旦生成就永远有效 | 用户不能主动销毁登录态 |
-| ❌ 无测试 | 整个项目零测试 | 改一行不知道炸没炸 |
-| ❌ `/tokens` 泄露所有 token | 调试接口暴露所有记住我 token | 在生产环境就是数据泄露 |
+### 1. 为什么要把 users 抽成独立模块
 
-v2 今天解决前两个问题——加退出功能、加单元测试。第三个问题（泄露）只要我们不写 `/tokens` 接口，就不会发生。
+Day 05 结束时，auth 模块里躺着三样不属于「认证」的东西：
+
+```
+auth/domain/schemas/user.ts                     ← users 表的行形状
+auth/domain/ports/user-account-repository.port.ts
+auth/infrastructure/sqlite-user-account-repository.ts   ← users 表 DDL + SQL
+```
+
+「账号」是**另一个领域**：将来会有「改昵称 / 换头像 / 会员等级」等与登录无关的用例。
+更现实的问题：一个表被两个领域读写时，DDL 与 SQL 会各写一份，慢慢漂移。
+
+### 2. 抽模块的边界怎么划
+
+```
+modules/users/
+├── domain/
+│   ├── ports/
+│   │   ├── user-account-repository.port.ts   # 模块**内部**持久化契约
+│   │   └── user-account.public.port.ts       # 模块**对外**契约（供 auth 消费）
+│   └── schemas/user.ts                       # 行形状（SSOT）
+├── application/user-account.public.service.ts # 契约的持有者是应用服务，不是仓储
+├── infrastructure/sqlite-user-account-repository.ts # 表 DDL + SQL 唯一落点
+├── compose.ts                                 # createUsersModule({ db }) → { account }
+└── index.ts                                   # 只发布：组合根 + 公共端口 + 行形状
+```
+
+三条要点：
+
+1. **公共端口 ≠ 内部端口**：内部端口可自由增删方法；公共端口是契约，改它要走「先加后发」；
+2. **薄转发层**：`UserAccountPublicService` 一行没干，但它是「契约持有者」—— 仓储随时可换，消费者不受影响；将来的审计/缓存/事务有唯一落点；
+3. **表归属**：`INSERT INTO users` / `UPDATE users` / `CREATE TABLE users` 全项目只许出现在 `users/infrastructure/`。
+
+### 3. 跨模块的三条纪律
+
+```ts
+// ✓ 唯一允许的跨模块写法：走对方 index.ts
+import { createUsersModule, type UserAccountPublicPort } from '../users/index'
+import type { TimeProvider } from '../shared/index'
+
+// ✗ 一律禁止
+import { SqliteUserAccountRepository } from '../users/infrastructure/sqlite-user-account-repository'
+```
+
+组合根负责把「别人的实现」接进来：
+
+```ts
+// main.ts：装配顺序 = 依赖顺序
+const users = createUsersModule({ db })
+const auth = createAuthModule({ db, userAccount: users.account, timeProvider, idGenerator, eventBus, bcryptRounds })
+```
+
+### 4. 架构守卫：让纪律可执行
+
+`tests/architecture.test.ts` 用三个规则把「口头约定」变成「CI 红灯」：
+
+| 规则 | 检查方式 |
+|---|---|
+| ① 跨模块 import 必须命中对方 `index.ts` | 扫描源码里所有 `modules/<x>/...` 相对 import，解析后路径必须落在 `modules/<x>/index.ts` |
+| ② `domain/` 不许 import 基础设施与 npm 包 | `domain/**` 的 import 只许相对路径 + 白名单（`domain/schemas/`、`domain/validators/`、`domain/events/` 放行 `zod`） |
+| ③ `INSERT INTO users` / `UPDATE users` / `CREATE TABLE users` 只许在 `users/infrastructure/` | 全文正则扫描 |
+
+> 守卫测试自己也要有 sanity check（如「扫到的文件数 > 30」），否则正则写错、扫了个空目录也会「全绿」。
+
+### 5. 事件：模块间的最低耦合协作
+
+auth 发 `UserRegisteredEvent`（Day 07 的 notifications 订阅它），
+订阅方**只 import auth 的公共面**拿事件类型，auth 对订阅方一无所知。
 
 ---
 
-## 🎯 架构变化
+## ✍️ 手打目标
 
-```
-day05 → day06 改动分布：
+### 1. 新建 `modules/users/`（从 auth 搬 3 个文件）
 
-src/
-├── application/
-│   └── logout.ts                         ← ★ 新增（简单的用例）
-├── presentation/
-│   ├── auth-schema.ts                    ← ＋logoutSchema
-│   └── auth-controller.ts                ← ＋/auth/logout 路由
-└── index.ts                              ← ＋LogoutUseCase
+- 搬 `schemas/user.ts` → `users/domain/schemas/user.ts`（改文件头注释：说明表归属与形状纪律）；
+- 拆端口：内部 `UserAccountRepositoryPort`（可自由演进）+ 公共 `UserAccountPublicPort`（契约）；
+- 搬仓储实现；**`users/index.ts` 只发布**：`createUsersModule` / `UsersModule` / `UserAccountPublicPort` / `UserRowSchema` / `UserRow`。
 
-tests/                                   ← ★ 新增目录
-└── application/
-    ├── register-user.test.ts             ← 5 个测试
-    ├── login-user.test.ts                ← 6 个测试
-    └── logout.test.ts                    ← 2 个测试
-```
+### 2. `users/application/user-account.public.service.ts`
 
-**退出部分**改 3 个文件 + 新增 1 个文件。
-**测试部分**新增 3 个文件。
+四个方法逐个转发到仓储端口。文件头写清「为什么要有这层空转发」（见概念 §2）。
 
----
+### 3. auth 侧改造
 
-## ✍️ 今天要改的文件
+- `auth/index.ts` 不再对外发布用户形状相关的东西（已经不需要）；
+- deps 契约：`userAccountRepository: z.custom<UserAccountRepositoryPort>()` → `userAccount: z.custom<UserAccountPublicPort>()`；
+- 实体 `import type { UserRow } from '../../../users/index'`（**仍然走公共面**）；
+- compose 收 `userAccount`（由 main 传入），不再自己 `new` 仓储；
+- `main.ts` 按依赖顺序装配（users 在前）。
 
-### Part 1 — 退出登录
+### 4. `tests/architecture.test.ts`
 
-#### Step 1 — 新建 application/logout.ts
+手打三个规则时注意：
+- 用 `fs.readdirSync(..., { recursive: true })` 或自写递归收集 `.ts`；
+- import 解析只看**相对路径**（`./`、`../`），npm 包按名字判定；
+- 每条规则给「反例说明」注释（这支测试的价值一半在失败信息里）。
 
-```typescript
-import { UserRepository } from '../domain/user-repository';
+### 5. 全量测试 + 守卫自测
 
-export class LogoutUseCase {
-  constructor(private readonly userRepository: UserRepository) {}
-
-  async execute(token: string): Promise<void> {
-    await this.userRepository.deleteRememberToken(token);
-  }
-}
-```
-
-这是目前**最简单的 use case**——只做一件事，一行核心逻辑。
-
-`deleteRememberToken` 接口在 day03 就已经定义好了，`SqliteUserRepository` 也已经实现了。今天只是把这个能力暴露给用户。
-
-**这就是接口定义先行带来的好处：** 功能做不做、什么时候做，不会影响架构设计。
+改完跑 `npm test`：既有 82 个测试应全部继续通过（**纯重构**：行为零变化）。
+再故意违规一次（例如在 `auth/domain/` 里 `import { z } from 'zod'` 之外的 npm 包，或在别处写一句 `INSERT INTO users`），确认守卫测试**真的会红**。
 
 ---
 
-#### Step 2 — presentation/auth-schema.ts（加 3 行）
-
-```typescript
-export const logoutSchema = z.object({
-  token: z.string().min(1, 'token 不能为空'),
-});
-```
-
----
-
-#### Step 3 — presentation/auth-controller.ts（加 import + 参数 + 路由）
-
-**import 加两项：**
-```typescript
-import { ..., logoutSchema } from './auth-schema';
-import { LogoutUseCase } from '../application/logout';
-```
-
-**函数签名加参数：**
-```typescript
-export function createAuthController(
-  ...,
-  logoutUseCase: LogoutUseCase,
-): Router {
-```
-
-**新增路由（在 oauth 之后、return 之前）：**
-```typescript
-  router.post('/logout', async (req: Request, res: Response) => {
-    try {
-      const { token } = logoutSchema.parse(req.body);
-      await logoutUseCase.execute(token);
-      res.json({ success: true, message: '已退出登录' });
-    } catch (error) {
-      handleError(res, error);
-    }
-  });
-```
-
----
-
-#### Step 4 — src/index.ts（注册）
-
-```typescript
-import { LogoutUseCase } from './application/logout';
-const logoutUseCase = new LogoutUseCase(userRepository);
-// 在 createAuthController 参数末尾加上 logoutUseCase
-```
-
----
-
-### Part 2 — 单元测试
-
-#### Step 5 — 安装 vitest
+## ✅ 验收点
 
 ```bash
-npm install --save-dev vitest
+cd solution/day06 && npm install && npm run gate
 ```
 
-然后在 `package.json` 的 `scripts` 中加上：
-
-```json
-"test": "vitest run"
-```
-
-`vitest run` 会执行所有 `*.test.ts` 文件，输出结果后退出。
+| 检查 | 期望 |
+|------|------|
+| `npm test` | **22 个文件 / 85 个测试**全过（含守卫） |
+| 守卫自测 | 临时加一句违规代码 → 守卫测试红；删掉 → 恢复绿 |
+| 跨模块 import | `grep -rn "modules/users/" src/modules/auth` 的结果全部以 `modules/users/index` 结尾 |
+| 表归属 | `grep -rn "INTO users\|CREATE TABLE users" src` 只命中 `users/infrastructure/` |
+| 依赖方向 | `grep -rn "modules/auth" src/modules/users` 无结果（users 不知道 auth 存在） |
 
 ---
 
-#### Step 6 — 理解「为什么清洁架构容易测试」
+## 🚨 违规 → 症状
 
-清洁架构 + 依赖注入 = **天然可测试**。
-
-```
-┌─────────────────────────────────────────┐
-│         测试 RegisterUserUseCase         │
-│                                         │
-│  1. 创建一个 mock 仓库（不碰数据库）       │
-│  2. 传入合法的输入                        │
-│  3. 验证：返回了 User、抛出了正确的异常     │
-│                                         │
-│  不用启动服务器、不用建表、不用准备数据     │
-└─────────────────────────────────────────┘
-```
-
-因为 use case 只依赖 `UserRepository` 接口（而不是具体的 `SqliteUserRepository`），测试时可以用 mock 替换。这就是**依赖注入的可测试性红利**。
-
-#### Step 7 — 创建 tests/application/logout.test.ts
-
-```typescript
-import { describe, it, expect, vi } from 'vitest';
-import { LogoutUseCase } from '../../src/application/logout';
-import { UserRepository } from '../../src/domain/user-repository';
-
-function createMockRepo(): UserRepository {
-  return {
-    deleteRememberToken: vi.fn(),
-    // 其他方法用不到，但 TypeScript 要求实现全部接口
-    findById: vi.fn(), findByUsername: vi.fn(), findByEmail: vi.fn(),
-    create: vi.fn(), findByOAuth: vi.fn(), createOAuthUser: vi.fn(),
-    updateResetToken: vi.fn(), findByResetToken: vi.fn(), updatePassword: vi.fn(),
-    createRememberToken: vi.fn(), findUserIdByRememberToken: vi.fn(),
-    getLockStatus: vi.fn(), incrementFailedAttempts: vi.fn(),
-    resetLockStatus: vi.fn(), lockAccount: vi.fn(),
-  };
-}
-
-describe('LogoutUseCase', () => {
-  it('should delete the remember token', async () => {
-    const repo = createMockRepo();
-    const useCase = new LogoutUseCase(repo);
-
-    await useCase.execute('some-token');
-
-    expect(repo.deleteRememberToken).toHaveBeenCalledWith('some-token');
-  });
-
-  it('should not throw when token does not exist', async () => {
-    const repo = createMockRepo();
-    const useCase = new LogoutUseCase(repo);
-
-    await expect(
-      useCase.execute('non-existent'),
-    ).resolves.not.toThrow();
-  });
-});
-```
-
-#### Step 8 — 创建 tests/application/register-user.test.ts
-
-写 5 个测试覆盖注册用例的核心逻辑：
-
-| 测试场景 | 验证什么 |
-|---------|--------|
-| 合法用户注册成功 | 返回了 User 对象 |
-| 用户名太短 | 抛出 ValidationError |
-| 密码太短 | 抛出 ValidationError |
-| 用户名重复 | 抛出 ConflictError |
-| 不存明文密码 | `hashedPassword` 是 bcrypt 格式，不是原文 |
-
-关键代码——测试「不存明文密码」：
-
-```typescript
-it('should not store plain text password', async () => {
-  const repo = createMockRepo();
-  let savedHashedPassword = '';
-  repo.create = vi.fn().mockImplementation(async (input) => {
-    savedHashedPassword = input.hashedPassword;
-    return { id: 1, username: input.username, email: input.email };
-  });
-  const useCase = new RegisterUserUseCase(repo);
-
-  await useCase.execute({ username: 'test', password: 'mypassword' });
-
-  expect(savedHashedPassword).not.toContain('mypassword');
-  expect(savedHashedPassword).toMatch(/^\$2[ab]/); // bcrypt 格式
-});
-```
-
-这个测试直接验证了 v1 day01 没有做到的事——密码不是明文存储。
-
-#### Step 9 — 创建 tests/application/login-user.test.ts
-
-写 6 个测试覆盖登录的核心路径：
-
-| 测试场景 | 验证什么 |
-|---------|--------|
-| 正确凭证登录成功 | 返回用户信息（不含密码哈希） |
-| 密码错误 | 抛出 UnauthorizedError |
-| 用户名不存在 | 抛出 UnauthorizedError（和密码错误相同） |
-| 记住我登录 | 返回 token |
-| 不记住我 | 不返回 token |
-| 账户被锁定 | 抛出「账户已锁定」 |
-
-注意测试「账户被锁定」时，只需要 mock `getLockStatus` 返回一个未来的 `lockedUntil`：
-
-```typescript
-repo.getLockStatus = vi.fn().mockResolvedValue({
-  failedAttempts: 5,
-  lockedUntil: new Date(Date.now() + 3600000).toISOString(),
-});
-```
-
-不需要真的输错 5 次。**mock 让我们能直接测试边界状态**，不需要建立前置条件。
-
-#### ⚠️ Mock 的陷阱
-
-写测试时容易遇到一个坑：`getLockStatus` 返回 `undefined`。
-
-```typescript
-// ❌ 这样写，getLockStatus 返回 undefined
-getLockStatus: vi.fn(),
-
-// ✅ 这样写，getLockStatus 返回一个合理的默认值
-getLockStatus: vi.fn().mockResolvedValue({ failedAttempts: 0, lockedUntil: null }),
-```
-
-`vi.fn()` 默认返回 `undefined`。而我们的登录用例会访问 `lockStatus.lockedUntil`——如果是 `undefined`，程序会直接报 `TypeError`。
-
-这就是为什么测试发现了一个**运行时空指针风险**——虽然生产环境不太容易出现（`getLockStatus` 总是会返回行数据），但类型安全上它确实不是完全安全的。一个 `if (!lockStatus) return` 可以防住，但这不在本教程范围内。
+| 违规 | 症状 |
+|------|------|
+| auth 直接 `import` users 的仓储实现 | users 想改 SQL/换库时，auth 跟着编译失败 —— 「契约」形同虚设；守卫规则 ① 红 |
+| 在 auth 里给 users 表写 SQL（如「注册时顺便 UPDATE users」） | 两处 DDL/两套列名口径；users 模块加字段时 auth 静默不生效；守卫规则 ③ 红 |
+| `domain/` 里 import 第三方库（如 `lodash`、`bcryptjs`） | 领域层不可移植（换运行时即崩）、单测需要装全量依赖；守卫规则 ② 红 |
+| 公共端口既有内部方法又有对外方法（合成一个大端口） | 消费者能用的面比需要的宽 → 破坏性改动概率上升；「窄口」失效 |
+| 守卫测试没有 sanity check（文件数下限） | 守卫自己「静默失效」：路径改错后它扫到 0 个文件，永远绿 |
 
 ---
 
-## ✅ 验证
+## 🔭 与真实仓库（NKDate）的对应
 
-### 退出登录验证
-
-```bash
-rm login-v2.db
-npm start
-
-# 1. 注册 + 记住我登录
-curl -X POST http://localhost:3000/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"alice","password":"123456","email":"a@b.com"}'
-
-RESP=$(curl -s -X POST http://localhost:3000/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"alice","password":"123456","rememberMe":true}')
-# 从 RESP 中提取 token（手动复制）
-
-# 2. 自动登录验证 token 有效
-curl -X POST http://localhost:3000/auth/auto-login \
-  -H 'Content-Type: application/json' \
-  -d '{"token":"<上面的TOKEN>"}'
-# → {"success":true,"data":{"id":1,"username":"alice",...}}
-
-# 3. 退出登录
-curl -X POST http://localhost:3000/auth/logout \
-  -H 'Content-Type: application/json' \
-  -d '{"token":"<上面的TOKEN>"}'
-# → {"success":true,"message":"已退出登录"}
-
-# 4. 再次自动登录（应失败）
-curl -X POST http://localhost:3000/auth/auto-login \
-  -H 'Content-Type: application/json' \
-  -d '{"token":"<上面的TOKEN>"}'
-# → {"success":false,"message":"自动登录已过期，请重新登录"}
-```
-
-### 单元测试验证
-
-```bash
-npm test
-# → 3 test files, 13 tests all passed ✓
-```
-
----
-
-## 💡 今天学到了什么
-
-### 退出登录——最简单的功能，最完整的流程
-
-LogoutUseCase 只有 8 行代码，但它经过了完整的 4 层架构：
-
-```
-Route  →  Schema  →  UseCase  →  Repository  →  SQL DELETE
-/logout   校验       deleteToken 接口调用        parameterized
-```
-
-再简单的功能也走同样的架构路径。**一致性比「偷懒省几行」重要得多。**
-
-### 测试——清洁架构的隐藏红利
-
-清洁架构最大的优势不是代码漂亮，而是**可测试**。
-
-| 架构 | 测试难度 |
-|------|---------|
-| v1：全部在 main.js | ❌ 几乎不可测——需要启动服务器、需要数据库、需要准备 HTTP 请求 |
-| v2：依赖注入 + 接口抽象 | ✅ 纯逻辑测试——mock 仓库接口，跑测试不需要启动任何服务 |
-
-对比测试执行时间：
-- v1：启动 Express → 连接 SQLite → curl → 解析 JSON → 断言（~3 秒/次）
-- v2：vitest + mock → 纯内存运行（~0.04 秒/测试）
-
-**13 个测试，总执行时间不到 1 秒。** 这种反馈循环让你愿意频繁跑测试。
-
-### 延伸思考
-
-- 如果要在 CI 中加入测试，`package.json` 里需要加什么？
-- 为什么 `createMockRepo` 要写 16 个 `vi.fn()`？有没有更简洁的方式？（提示：`vi.fn()` 的 `mockImplementation`、`beforeEach`）
-- 如果要测试 `SqliteUserRepository`（需要真实数据库），应该怎么设计测试？
-- 今天的测试覆盖了「正常路径」和「错误路径」。还有哪些边界情况没有覆盖？（比如空字符串、超长字符串、XSS 攻击向量）
-
----
-
-## 📁 参考 solution
-
-```
-solution/day06/
-├── package.json                          ← 加了 vitest 和 test 脚本
-├── src/
-│   ├── index.ts                          ← ＋LogoutUseCase
-│   ├── application/logout.ts             ← ★ 新增
-│   ├── presentation/auth-schema.ts       ← ＋logoutSchema
-│   ├── presentation/auth-controller.ts   ← ＋/auth/logout
-│   └── ...其他文件不变
-└── tests/
-    └── application/
-        ├── register-user.test.ts         ← 5 tests
-        ├── login-user.test.ts            ← 6 tests
-        └── logout.test.ts                ← 2 tests
-```
+- 真实仓库每模块 `index.ts` 即公开面；**窄口原则**体现在「同一提供方按消费者切多个端口」（本教程只有一个消费者 auth，故合成一个端口 + 注释标明动机）；
+- `UserAccountPublicService` 这种「薄应用服务」在真实仓库里还会承载审计、缓存、事务；
+- 架构守卫在真实仓库是 ESLint 的 `no-restricted-imports` + 自定义脚本双保险：**规则写进 CI，而不是写进文档**。

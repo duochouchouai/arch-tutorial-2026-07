@@ -1,629 +1,192 @@
-# GUIDE-day01 — 搭建 4 层清洁架构，实现注册 + 登录
+# GUIDE-day01 — 目录骨架与组合根
 
-预计时间：**50 分钟**（概念 5 分钟 + 手打代码 40 分钟 + 验证 5 分钟）
+预计时间：**90 分钟**（读概念 20 分钟 + 手打 55 分钟 + 验收 15 分钟）
 
----
-
-## 📖 今天做什么
-
-在 `login-v2/` 从零搭建一个 4 层清洁架构的登录系统：
-- 用户注册（用户名 + 密码 + 邮箱）
-- 用户登录（验证密码）
-- 密码用 **bcrypt 哈希**存储（对比 v1 的明文）
-- 数据库使用 **参数化查询**（对比 v1 的字符串拼接）
-- 使用 **Zod** 做请求校验（对比 v1 的 `if/else` 四处散落）
-
-**不使用任何 ORM，不引入任何重量级框架。** 每一步都手动写出依赖注入，感受关注点分离。
+> 本教程的每一天都以「你能自己打出同构的代码」为验收标准。
+> 参考答案在 `solution/dayNN/`，**手打完再对照**，不要先看答案。
 
 ---
 
-## 🗑️ v1 回顾：Day01 有哪些问题
+## 📖 概念：为什么第一天就要「骨架 + 组合根」
 
-v1/day01 只有 2 个文件，52 行代码，实现了注册和登录。但每一行都是债：
+v1 的目录长这样：
 
-| 问题 | v1 写法 | 为什么危险 |
-|------|---------|-----------|
-| ❌ 明文密码 | `INSERT INTO users ... password = '${password}'` | 数据库泄露 = 所有密码泄露 |
-| ❌ SQL 注入 | `SELECT * FROM users WHERE name = '${username}'` | 传 `' OR 1=1 --` 能直接登录 |
-| ❌ 零校验 | 用户名密码不做任何检查 | 空字符串也能注册 |
-| ❌ 零错误处理 | `db.prepare().run()` 没有 try/catch | 数据库崩了进程直接挂 |
-| ❌ 200 万能状态码 | 成功失败都 `res.json({ success: false })` | 前端无法用状态码判断 |
-| ❌ 调试接口没删 | `/users` 返回所有密码 | 生产环境灾难 |
+```
+login-v1/src/
+├── application/      # 用例（但里面有 SQL）
+├── domain/           # 实体（但 import 了 bcrypt）
+├── infrastructure/   # 仓储
+├── presentation/     # 路由（但里面有业务判断）
+└── index.ts          # 端口、装配、启动全在这一个文件里
+```
 
-今天 v2 的每一行代码，都在解决上面的某个问题。
+问题不在「层名写错了」，而在三条边界没有**物理隔离**：
+
+1. 任何文件都能 import 任何文件 —— 依赖方向只靠自觉；
+2. 装配散落在路由文件和 index.ts 里 —— 想换实现要翻全仓库；
+3. 没有守卫 —— 三个月后没人知道哪条纪律是硬约束。
+
+v2 的第一天不做业务，只立两样东西：**多模块的目录形状** 和 **唯一的组合根**。
+
+```
+login-v2/solution/day01/src/
+├── config/index.ts          # 环境变量 → Config（唯一校验点）
+├── main.ts                  # 组合根：装配一切 + HTTP 挂载
+└── modules/
+    ├── shared/              # 共享底座（端口 + 基础设施实现）
+    │   ├── domain/
+    │   │   ├── domain-event.ts
+    │   │   └── ports/       # TimeProvider / IdGenerator / EventBus
+    │   ├── infrastructure/  # SystemTimeProvider / CryptoIdGenerator / InMemoryEventBus
+    │   └── index.ts         # 模块公开面（barrel）
+    └── auth/                # 业务模块骨架
+        ├── compose.ts       # createAuthModule() → { createRouter() }
+        └── index.ts
+```
+
+两条从第一天就生效的纪律：
+
+- **模块之间只许通过对方的 `index.ts` 说话**。`modules/auth` 永远不许 `import '../shared/infrastructure/xxx'`；
+- **只有 `main.ts` 知道「谁是谁的实现」**。模块自己不许 `new` 别人的基础设施，依赖从构造函数进（Day 05 兑现）。
+
+`shared` 的 `TimeProvider`：为什么时间也要是端口？因为「30 分钟后解锁」的测试不想真的等 30 分钟。
+Day 03 起你会看到 `FakeTimeProvider.advance()` 一行代码完成时间旅行 —— 前提是实体**永不调 `Date.now()`**。
 
 ---
 
-## 🎯 清洁架构 4 层
+## ✍️ 手打目标
 
+> 每个文件都要求：`@file` / `@author` 文件头 + 为什么这么做（不是「做了什么」）。
+
+### 0. 工程配置（先跑通工具链）
+
+| 文件 | 要点 |
+|------|------|
+| `package.json` | scripts：`test`=vitest run、`typecheck`=tsc --noEmit、`lint`=eslint src tests、`format:check`=prettier --check、`gate`=四件套串联；`type: commonjs`（ts-node 跑 main） |
+| `tsconfig.json` | 12 条 strict：`strict`、`noUnusedLocals`、`noUnusedParameters`、`noImplicitReturns`、`noImplicitOverride`、`noFallthroughCasesInSwitch`、`allowUnreachableCode:false`、`noUncheckedIndexedAccess`、`exactOptionalPropertyTypes`、`noPropertyAccessFromIndexSignature`、`isolatedModules`、`forceConsistentCasingInFileNames` |
+| `eslint.config.mjs` | typescript-eslint recommended + `no-explicit-any: error` + `ban-ts-comment: error` + `max-params: ['error', 4]` + `no-unused-vars` 放行 `^_` 前缀 |
+| `.prettierrc` | `{ semi:false, singleQuote:true, printWidth:120, trailingComma:"all" }` |
+| `vitest.config.ts` | `minWorkers: 1, maxWorkers: 2`（教程机器内存小；真实项目按 CI 配置） |
+
+### 1. `src/config/index.ts`
+
+zod 校验环境变量，导出 `ConfigSchema` / `Config` / `loadConfig(env = process.env)`：
+
+- `port`（`z.coerce.number()`，默认 3000）、`dbPath`（默认 `login-v2.db`）、`bcryptRounds`（4-15，默认 10）、`nodeEnv`；
+- 非法值在**启动时**抛错（fail fast），而不是在深夜的某个请求里；
+- 同时导出 `loadEnvFile()`：启动时若工作目录有 `.env` 就加载。**本机配置写 `.env`、永不提交，仓库只提交 `.env.example` 模板**——这个习惯从 Day 01 就开始养（配一份 `.env.example`，新环境 `cp .env.example .env` 即可跑）。
+
+### 2. `src/modules/shared/domain/ports/`
+
+```ts
+// time-provider.port.ts —— 时间的唯一来源；禁止 Entity 里出现 Date.now()
+export interface TimeProvider {
+  /** 当前时间（Unix 毫秒） */
+  now(): number
+}
 ```
-┌──────────────────────────────────────────┐
-│  presentation/     (路由 + 校验)           │
-│  auth-controller.ts                       │
-│  auth-schema.ts                           │
-│  职责：解析请求 → 调 use case → 返回响应   │
-├──────────────────────────────────────────┤
-│  application/      (业务用例)              │
-│  register-user.ts                         │
-│  login-user.ts                            │
-│  职责：编排业务逻辑，不关心 I/O            │
-├──────────────────────────────────────────┤
-│  domain/           (核心模型)              │
-│  user.ts                                  │
-│  user-repository.ts                       │
-│  职责：定义实体 + 接口，不依赖外部         │
-├──────────────────────────────────────────┤
-│  infrastructure/   (技术实现)              │
-│  database.ts                              │
-│  user-repository-sqlite.ts                │
-│  职责：实现接口，不包含业务逻辑            │
-└──────────────────────────────────────────┘
+再写 `id-generator.port.ts`（`generate(): string`）和 `event-bus.port.ts`：
 
-依赖方向：presentation → application → domain ← infrastructure（依赖倒置）
+```ts
+export type EventHandler = (event: DomainEvent) => void | Promise<void>
+export interface EventBus {
+  subscribe(eventName: string, handler: EventHandler): void
+  publish(event: DomainEvent): Promise<void>
+}
 ```
 
-**核心规则：**
-- 外层依赖内层，内层**不依赖**外层
-- domain 层定义接口（repository），infrastructure 层实现
-- 通过构造函数注入依赖，不 `new` 在任何文件内部
+### 3. `src/modules/shared/domain/domain-event.ts`
+
+```ts
+export abstract class DomainEvent {
+  readonly occurredAt: number
+  constructor(occurredAt: number) { this.occurredAt = occurredAt }
+}
+```
+
+### 4. `src/modules/shared/infrastructure/`
+
+- `system-time-provider.ts`：`now() => Date.now()`（**全项目唯一**该出现 `Date.now()` 的角落之一）
+- `crypto-id-generator.ts`：`randomBytes(16).toString('hex')`（对比 v1 的 `Math.random()`）
+- `in-memory-event-bus.ts`：按 `event.constructor.name` 路由；关键实现细节：
+
+```ts
+async publish(event: DomainEvent): Promise<void> {
+  const handlers = this.#handlers.get(event.constructor.name) ?? []
+  // 先包成 Promise 再进 allSettled：订阅方**同步**抛错也会被兜住
+  await Promise.allSettled(handlers.map((handler) => Promise.resolve().then(() => handler(event))))
+}
+```
+> 自己动手写一遍「同步抛错的订阅者」测试，你会先掉进 `allSettled` 不接同步错误的坑 —— 这正是要手打的原因。
+
+### 5. `src/modules/auth/compose.ts`（骨架）+ `index.ts`
+
+```ts
+export interface AuthModule { createRouter: () => Router }
+export function createAuthModule(): AuthModule {
+  // 骨架阶段没有端点：/auth 下暂时全是 404。Day 05 挂上真实路由。
+  return { createRouter: () => Router() }
+}
+```
+`index.ts` 只转发 `createAuthModule` 与 `AuthModule` 类型 —— **模块公开面从第一天就定形**。
+
+### 6. `src/main.ts`（组合根）
+
+```ts
+export function createApp(): AppBundle {
+  const auth = createAuthModule()          // ① 模块装配
+  const app = express()                    // ② HTTP 装配
+  app.use(express.json())
+  app.get('/health', (_req, res) => { res.status(200).json({ status: 'ok' }) })
+  app.use('/auth', auth.createRouter())
+  return { app }
+}
+if (require.main === module) { /* 只有直接运行才 listen */ }
+```
+要点：`createApp` 单独导出给 e2e 测试复用（**测的装配 = 跑的装配**），`require.main === module` 保证被测试 import 时不占端口。
+
+### 7. 测试（3 + 1 个文件）
+
+- `src/config/index.test.ts`：默认值 / 非法值抛错 / 环境变量覆盖；
+- `src/modules/shared/infrastructure/in-memory-event-bus.test.ts`：类名路由、订阅者抛错隔离、无订阅者不炸；
+- `src/modules/shared/infrastructure/crypto-id-generator.test.ts`：16 字节 hex、不重复；
+- `tests/health.e2e.test.ts`：supertest 打真 `createApp()`，200 + `{ status: 'ok' }`。
 
 ---
 
-## ✍️ 开始手打
-
-### Step 1 — 创建 src/shared/errors.ts（统一错误类型）
-
-创建文件 `login-v2/src/shared/errors.ts`，输入以下代码：
-
-```typescript
-export class AppError extends Error {
-  constructor(
-    public readonly statusCode: number,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'AppError';
-  }
-}
-
-export class ValidationError extends AppError {
-  constructor(message: string) {
-    super(400, message);
-  }
-}
-
-export class UnauthorizedError extends AppError {
-  constructor(message = '认证失败') {
-    super(401, message);
-  }
-}
-
-export class ConflictError extends AppError {
-  constructor(message: string) {
-    super(409, message);
-  }
-}
-```
-
-**📝 为什么这样写：**
-
-所有业务错误都继承 `AppError`，controller 可以统一捕获并根据 `statusCode` 返回对应的 HTTP 状态码。
-
-对比 v1：v1 的成功失败都返回 `200`，前端只能靠 `success: false` 来判断。这里每个错误都有自己的 HTTP 状态码（400、401、409），语义清晰。
-
----
-
-### Step 2 — 创建 src/domain/user.ts（用户实体）
-
-```typescript
-export interface User {
-  id: number;
-  username: string;
-  email: string;
-}
-```
-
-**📝 为什么这样写：**
-
-`User` 是纯业务概念——**和数据库表结构无关，和 Express 请求无关**。这就是 domain 层的核心：不依赖任何外部框架。
-
-注意这里**没有** `password` 字段。密码哈希是基础设施层的细节，domain 层不需要关心它。
-
----
-
-### Step 3 — 创建 src/domain/user-repository.ts（仓库接口）
-
-```typescript
-import { User } from './user';
-
-export interface CreateUserInput {
-  username: string;
-  email: string;
-  hashedPassword: string;
-}
-
-export interface UserWithPassword extends User {
-  hashedPassword: string;
-}
-
-export interface UserRepository {
-  findById(id: number): Promise<User | null>;
-  findByUsername(username: string): Promise<UserWithPassword | null>;
-  create(input: CreateUserInput): Promise<User>;
-}
-```
-
-**📝 为什么这样写：**
-
-这是**依赖倒置原则**的体现：
-
-- domain 层定义接口 `UserRepository`，只说明「仓库能干什么」
-- 具体实现（SQLite、PostgreSQL、甚至是内存）在 infrastructure 层
-- domain 层**不 import 任何第三方库或数据库驱动**
-
-`UserWithPassword` 是带密码哈希的用户类型，只在仓库层使用——登录用例需要验证密码，但验证通过后只返回 `User`（不含密码）。
-
-`CreateUserInput` 的 `hashedPassword` 是已哈希的密码——用例层负责哈希，仓库只负责存。
-
----
-
-### Step 4 — 创建 src/infrastructure/database.ts（数据库连接）
-
-```typescript
-import { DatabaseSync } from 'node:sqlite';
-
-let db: DatabaseSync | null = null;
-
-export function getDatabase(): DatabaseSync {
-  if (!db) {
-    db = new DatabaseSync('login-v2.db');
-
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT NOT NULL DEFAULT '',
-        hashed_password TEXT NOT NULL
-      )
-    `);
-
-    console.log('数据库已初始化');
-  }
-  return db;
-}
-```
-
-**📝 为什么这样写：**
-
-使用 Node.js 22+ 内置的 `node:sqlite` 模块，**零外部数据库依赖**。
-
-关键设计：
-- **单例模式**：所有 repository 共用一个数据库连接，不像 v1 每个文件各自 `new Database()`
-- **集中建表**：表结构定义在一个地方，不散落
-- 列名 `hashed_password` 使用下划线命名（SQL 惯例），domain 层的字段使用驼峰命名（TypeScript 惯例）——repository 负责这种命名转换
-
----
-
-### Step 5 — 创建 src/infrastructure/user-repository-sqlite.ts（仓库实现）
-
-```typescript
-import { getDatabase } from './database';
-import { User } from '../domain/user';
-import { CreateUserInput, UserRepository, UserWithPassword } from '../domain/user-repository';
-
-interface UserRow {
-  id: number;
-  username: string;
-  email: string;
-  hashed_password: string;
-}
-
-function toUser(row: UserRow): User {
-  return { id: row.id, username: row.username, email: row.email };
-}
-
-function toUserWithPassword(row: UserRow): UserWithPassword {
-  return { id: row.id, username: row.username, email: row.email, hashedPassword: row.hashed_password };
-}
-
-export class SqliteUserRepository implements UserRepository {
-  async findById(id: number): Promise<User | null> {
-    const db = getDatabase();
-    const row = db.prepare('SELECT id, username, email FROM users WHERE id = ?').get(id) as UserRow | undefined;
-    return row ? toUser(row) : null;
-  }
-
-  async findByUsername(username: string): Promise<UserWithPassword | null> {
-    const db = getDatabase();
-    const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as UserRow | undefined;
-    return row ? toUserWithPassword(row) : null;
-  }
-
-  async create(input: CreateUserInput): Promise<User> {
-    const db = getDatabase();
-    const result = db.prepare(
-      'INSERT INTO users (username, email, hashed_password) VALUES (?, ?, ?)',
-    ).run(input.username, input.email, input.hashedPassword);
-
-    return { id: Number(result.lastInsertRowid), username: input.username, email: input.email };
-  }
-}
-```
-
-**📝 为什么这样写：**
-
-核心改动：**参数化查询**
-
-```sql
--- v1（SQL 注入）
-VALUES ('${username}', '${password}')
-
--- v2（参数化）
-VALUES (?, ?, ?)
-```
-
-`?` 占位符由数据库引擎安全处理，无论传什么值都不会被当作 SQL 指令执行。
-
-另外注意：
-- `select *` 查询返回的 `hashed_password`（下划线）通过 `toUserWithPassword` 映射为 `hashedPassword`（驼峰）
-- `create` 方法返回的是 `User`（不含密码），不是数据库行——密码哈希永远不会泄露出去
-
----
-
-### Step 6 — 创建 src/application/register-user.ts（注册用例）
-
-```typescript
-import bcrypt from 'bcryptjs';
-import { UserRepository } from '../domain/user-repository';
-import { ValidationError, ConflictError } from '../shared/errors';
-
-export interface RegisterUserInput {
-  username: string;
-  password: string;
-  email?: string;
-}
-
-export class RegisterUserUseCase {
-  constructor(private readonly userRepository: UserRepository) {}
-
-  async execute(input: RegisterUserInput) {
-    if (!input.username || input.username.length < 3) {
-      throw new ValidationError('用户名至少3个字符');
-    }
-    if (!input.password || input.password.length < 6) {
-      throw new ValidationError('密码至少6个字符');
-    }
-
-    const existing = await this.userRepository.findByUsername(input.username);
-    if (existing) {
-      throw new ConflictError('用户名已存在');
-    }
-
-    const hashedPassword = await bcrypt.hash(input.password, 10);
-    const user = await this.userRepository.create({
-      username: input.username,
-      email: input.email || '',
-      hashedPassword,
-    });
-
-    return user;
-  }
-}
-```
-
-**📝 为什么这样写：**
-
-`RegisterUserUseCase` 是一个**用例**（Use Case）——它只做一件事：编排注册流程。
-
-**它只关心「做什么」和「按什么顺序做」，不关心「怎么做」：**
-- 校验输入（规则在用例层定义）
-- 检查重复（调用仓库接口）
-- 哈希密码（调用 bcrypt）
-- 保存用户（调用仓库接口）
-
-构造函数接收 `UserRepository` 接口，不是具体实现——**这就是依赖注入**。测试时可以传入 mock 仓库，不需要真的数据库。
-
-对比 v1：v1 的注册逻辑直接写在 Express handler 里，和路由、数据库、错误处理全部耦合在一起。
-
----
-
-### Step 7 — 创建 src/application/login-user.ts（登录用例）
-
-```typescript
-import bcrypt from 'bcryptjs';
-import { UserRepository } from '../domain/user-repository';
-import { UnauthorizedError } from '../shared/errors';
-
-export interface LoginUserInput {
-  username: string;
-  password: string;
-}
-
-export class LoginUserUseCase {
-  constructor(private readonly userRepository: UserRepository) {}
-
-  async execute(input: LoginUserInput) {
-    const user = await this.userRepository.findByUsername(input.username);
-    if (!user) {
-      throw new UnauthorizedError('用户名或密码错误');
-    }
-
-    const isValid = await bcrypt.compare(input.password, user.hashedPassword);
-    if (!isValid) {
-      throw new UnauthorizedError('用户名或密码错误');
-    }
-
-    const { hashedPassword, ...safeUser } = user;
-    return safeUser;
-  }
-}
-```
-
-**📝 为什么这样写：**
-
-关键设计点：
-
-1. **不泄露「用户名是否存在」**：无论用户名不存在还是密码错误，都返回相同的「用户名或密码错误」。对比 v1，v1 的忘记密码接口会泄露邮箱是否注册。
-
-2. **bcrypt.compare 验证密码**：对比 `user.hashedPassword`（库里的哈希）和 `input.password`（用户输入的明文）。bcrypt 会在 compare 内部进行哈希+盐值比较。
-
-3. **返回用户信息前解构掉 hashedPassword**：`const { hashedPassword, ...safeUser } = user`。这个语法从 `user` 对象中取出 `hashedPassword`，剩下的就是 `safeUser`。密码哈希永远不会离开用例层。
-
----
-
-### Step 8 — 创建 src/presentation/auth-schema.ts（Zod 校验）
-
-```typescript
-import { z } from 'zod';
-
-export const registerSchema = z.object({
-  username: z.string().min(3, '用户名至少3个字符'),
-  password: z.string().min(6, '密码至少6个字符'),
-  email: z.string().email('邮箱格式不正确').optional().or(z.literal('')),
-});
-
-export const loginSchema = z.object({
-  username: z.string().min(1, '请输入用户名'),
-  password: z.string().min(1, '请输入密码'),
-});
-```
-
-**📝 为什么这样写：**
-
-对比 v1：v1 的校验逻辑是 `if (!email.includes('@'))` 散落在 handler 里。这里用 Zod schema 集中声明：
-
-- 类型安全——Zod 推导出的 TypeScript 类型可以直接用
-- 错误信息统一——所有校验错误由 Zod 生成，格式一致
-- 可复用——schema 可以在不同 controller 之间共享
-
-注意校验规则在 presentation 层定义，因为这是 I/O 边界——请求进来时的第一道防线。domain 层的校验（如密码长度）在 use case 里做，两者相互补充而不是重复。
-
----
-
-### Step 9 — 创建 src/presentation/auth-controller.ts（Express 路由）
-
-```typescript
-import { Router, Request, Response } from 'express';
-import { ZodError } from 'zod';
-
-import { registerSchema, loginSchema } from './auth-schema';
-import { RegisterUserUseCase } from '../application/register-user';
-import { LoginUserUseCase } from '../application/login-user';
-import { AppError } from '../shared/errors';
-
-export function createAuthController(
-  registerUseCase: RegisterUserUseCase,
-  loginUseCase: LoginUserUseCase,
-): Router {
-  const router = Router();
-
-  router.post('/register', async (req: Request, res: Response) => {
-    try {
-      const input = registerSchema.parse(req.body);
-      const user = await registerUseCase.execute(input);
-      res.status(201).json({ success: true, data: user });
-    } catch (error) {
-      handleError(res, error);
-    }
-  });
-
-  router.post('/login', async (req: Request, res: Response) => {
-    try {
-      const input = loginSchema.parse(req.body);
-      const user = await loginUseCase.execute(input);
-      res.status(200).json({ success: true, data: user });
-    } catch (error) {
-      handleError(res, error);
-    }
-  });
-
-  return router;
-}
-
-function handleError(res: Response, error: unknown) {
-  if (error instanceof ZodError) {
-    // 校验失败：400
-    res.status(400).json({ success: false, message: error.errors[0].message });
-    return;
-  }
-
-  if (error instanceof AppError) {
-    // 业务错误：按 error.statusCode
-    res.status(error.statusCode).json({ success: false, message: error.message });
-    return;
-  }
-
-  // 未知错误：500
-  console.error('未处理的错误:', error);
-  res.status(500).json({ success: false, message: '服务器内部错误' });
-}
-```
-
-**📝 为什么这样写：**
-
-Controller 的职责被严格限定在**三件事**：
-1. **解析请求**：从 `req.body` 中拿数据，用 Zod schema 校验
-2. **调用用例**：委托给 application 层的 use case
-3. **统一响应**：成功返回 `200`/`201`，失败返回对应错误码
-
-**`handleError` 统一处理三种错误：**
-- `ZodError` → 400（校验失败）
-- `AppError` → 对应 `statusCode`（业务错误）
-- 其他错误 → 500（服务器内部错误，打印日志）
-
-**依赖注入**：use case 通过参数传入，controller 不自己 `new`。
-
-对比 v1：v1 的 `register` handler 里混了校验、SQL、错误处理、业务逻辑——整整 15 行一个函数搞定。这里 controller 只负责 I/O，业务逻辑在 use case，数据库在 repository。
-
----
-
-### Step 10 — 创建 src/index.ts（组合根）
-
-```typescript
-import express from 'express';
-
-import { getDatabase } from './infrastructure/database';
-import { SqliteUserRepository } from './infrastructure/user-repository-sqlite';
-import { RegisterUserUseCase } from './application/register-user';
-import { LoginUserUseCase } from './application/login-user';
-import { createAuthController } from './presentation/auth-controller';
-
-// 1. 基础设施：数据库
-getDatabase();
-const userRepository = new SqliteUserRepository();
-
-// 2. 业务用例：注入仓库实现
-const registerUseCase = new RegisterUserUseCase(userRepository);
-const loginUseCase = new LoginUserUseCase(userRepository);
-
-// 3. Express 应用
-const app = express();
-app.use(express.json());
-
-// 4. 路由：注入 use case
-app.use('/auth', createAuthController(registerUseCase, loginUseCase));
-
-// 5. 启动
-app.listen(3000, () => {
-  console.log('登录服务已启动：http://localhost:3000');
-});
-```
-
-**📝 为什么这样写：**
-
-这是**组合根（Composition Root）**——整个应用的组装点。
-
-**「依赖沿着一条路径注入」：**
-```
-index.ts（组合根）
-  → new SqliteUserRepository()
-  → new RegisterUserUseCase(userRepository)
-  → createAuthController(registerUseCase, loginUseCase)
-  → app.use('/auth', router)
-```
-
-没有任何类在内部 `new` 自己的依赖。每一个组件只通过构造函数接收自己需要的接口。
-
-这样设计带来的好处：
-- **可测试**：测试时可以用 mock 仓库替换 SqliteUserRepository
-- **可切换**：如果要换成 PostgreSQL，只需要新建一个仓库实现类
-- **可见性**：所有依赖关系在组合根一目了然
-
----
-
-## ✅ 验证
+## ✅ 验收点
 
 ```bash
-# 1. 安装依赖（如果还没装）
+cd solution/day01
 npm install
-
-# 2. 启动服务
-npm start
-
-# 3. 打开另一个终端，测试注册
-curl -X POST http://localhost:3000/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"123456","email":"admin@example.com"}'
-# 预期：{"success":true,"data":{"id":1,"username":"admin","email":"admin@example.com"}}
-
-# 4. 测试登录
-curl -X POST http://localhost:3000/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"123456"}'
-# 预期：{"success":true,"data":{"id":1,"username":"admin","email":"admin@example.com"}}
-
-# 5. 测试密码错误
-curl -X POST http://localhost:3000/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"wrong"}'
-# 预期：{"success":false,"message":"用户名或密码错误"}
-
-# 6. 测试用户名重复
-curl -X POST http://localhost:3000/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"654321"}'
-# 预期：{"success":false,"message":"用户名已存在"}
+npm run gate          # prettier + tsc + eslint + vitest 四连
+npm start             # 另开终端：curl localhost:3000/health → {"status":"ok"}
 ```
 
-如果所有测试都通过，恭喜——你手打了一套完整的 4 层清洁架构！
+| 检查 | 期望 |
+|------|------|
+| `npm test` | **4 个文件 / 8 个测试**全过 |
+| `npm run typecheck` | 0 error（12 条 strict 全开） |
+| `npm run lint` | 0 error（含 `no-explicit-any`） |
+| 目录结构 | `src/modules/{shared,auth}`，两个 `index.ts` 都是纯 barrel |
+| 纪律自查 | `grep -rn "Date.now()" src` 只出现在 `system-time-provider.ts` |
 
 ---
 
-## 💡 今天学到了什么
+## 🚨 违规 → 症状
 
-### 三个核心原则
-
-1. **依赖倒置**：高层模块（domain）定义接口，低层模块（infrastructure）实现接口。两者都依赖抽象。
-
-2. **单向依赖**：presentation → application → domain ← infrastructure。箭头不能反向。
-
-3. **关注点分离**：
-   - domain：只定义实体和接口
-   - application：只编排业务逻辑
-   - infrastructure：只实现技术细节
-   - presentation：只处理 I/O
-
-### 和 v1 的对比
-
-| 对比项 | v1（屎山） | v2（清洁架构） |
-|--------|-----------|--------------|
-| 文件数 | 2 个 | 10 个 |
-| main.js | 52 行手写所有逻辑 | index.ts 只负责组装 |
-| 密码 | 明文存储 | bcrypt 哈希 |
-| SQL 安全 | 字符串拼接 | 参数化查询 |
-| 错误处理 | 无 | 统一错误类型 + 状态码 |
-| 校验 | 无 | Zod schema |
-| 依赖关系 | 无（一脸糊） | 清晰单向依赖 |
-| 可测试性 | 不可测 | 每层可独立测试 |
-
-### 延伸思考
-
-- 如果要把 SQLite 换成 PostgreSQL，需要改哪几个文件？哪些文件不需要改？
-- 如果要加一个「管理员才能注册」的规则，应该加在哪一层？
-- 为什么 `Password` 字段在 domain 层的 `User` 接口中不存在？
-- 如果有一天 `bcrypt` 被发现有漏洞需要换成 `argon2`，需要改几个文件？
+| 违规 | 症状（怎么发现的） |
+|------|--------------------|
+| 模块内部件被外部 import（如 `main.ts` 直接 import `shared/infrastructure/system-time-provider`） | Day 06 的架构守卫测试直接红：`跨模块 import 必须命中 index.ts` |
+| `main.ts` 里写业务判断 | `createApp` 越来越长、e2e 和生产的装配开始分叉（「测的装配 ≠ 跑的装配」是老 bug 温床） |
+| 实体里 `Date.now()` | Day 03 的「锁定到期」测试只能 `sleep`；CI 上偶发失败（时间竞态） |
+| 没有 `index.ts` barrel，全项目按相对路径互 import | 移动一个文件要改 20 处 import；模块边界无从谈起 |
+| `any` 逃逸（`as any`、`@ts-ignore`） | eslint 直接 error；类型系统失去意义，重构靠运气 |
 
 ---
 
-## 📁 参考 solution
+## 🔭 与真实仓库（NKDate）的对应
 
-如果你卡住了，可以查看 `solution/day01/` 目录下的完整代码。
-
-```
-login-v2/solution/day01/
-├── package.json
-├── tsconfig.json
-└── src/
-    ├── index.ts
-    ├── shared/errors.ts
-    ├── domain/user.ts
-    ├── domain/user-repository.ts
-    ├── application/register-user.ts
-    ├── application/login-user.ts
-    ├── infrastructure/database.ts
-    ├── infrastructure/user-repository-sqlite.ts
-    ├── presentation/auth-schema.ts
-    └── presentation/auth-controller.ts
-```
-
-建议：**先手打，卡住再看答案。** 手打一遍的收获比读十遍架构书都大。
+- 真实仓库模块更多（`users` / `orders` / …），**每个模块同样只有一个 `index.ts` 公开面**；`shared` 在真实仓库拆成多个入口（`@shared/ports`、`@shared/infrastructure`），教程为少一层心智负担合成一个；
+- 组合根在真实仓库里就是 `src/main.ts` + 各模块 `compose.ts`，和你今天打的结构同形；
+- `TimeProvider` 不是教学道具：真实仓库里所有「过期/锁定/TTL」判定都走注入的时钟，测试从不需要等真实时间。
