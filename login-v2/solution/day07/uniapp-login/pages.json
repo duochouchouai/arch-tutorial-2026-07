@@ -29,12 +29,6 @@
 			"style": {
 				"navigationBarTitleText": "重置密码"
 			}
-		},
-		{
-			"path": "pages/oauth/oauth",
-			"style": {
-				"navigationBarTitleText": "第三方登录"
-			}
 		}
 	],
 	"globalStyle": {

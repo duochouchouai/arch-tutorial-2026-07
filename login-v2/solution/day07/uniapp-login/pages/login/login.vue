@@ -1,44 +1,38 @@
 <template>
   <view class="terminal">
-    <view v-if="countdown > 0" class="lock-screen">
-      <view class="prompt">$ ssh login@arch-tutorial</view>
-      <view class="lock-text">ACCOUNT LOCKED</view>
-      <view class="lock-countdown">{{ countdown }}</view>
-      <view class="lock-label">minutes remaining</view>
-      <view class="output"></view>
-      <view class="output blink">$ █</view>
-    </view>
-    <view v-else>
-      <view class="prompt">$ ssh login@arch-tutorial</view>
-      <view class="prompt">Password:</view>
-      <input v-model="username" placeholder="username" class="cmd-input" />
-      <input v-model="password" type="password" placeholder="········" class="cmd-input" />
-      <button @click="handleLogin" :disabled="loading" class="cmd-btn">$ login</button>
-      <text v-if="error" class="cmd-error">{{ error }}</text>
-      <navigator url="/pages/register/register" class="cmd-link">$ register --new-account</navigator>
-      <navigator url="/pages/forgot-password/forgot-password" class="cmd-link">$ passwd --forgot</navigator>
-      <navigator url="/pages/oauth/oauth" class="cmd-link">$ oauth --login</navigator>
-    </view>
+    <view class="prompt">$ ssh login@arch-tutorial</view>
+    <view class="prompt">Password:</view>
+    <input v-model="username" placeholder="username" class="cmd-input" />
+    <input v-model="password" type="password" placeholder="········" class="cmd-input" />
+    <button @click="handleLogin" :disabled="loading" class="cmd-btn">$ login</button>
+    <text v-if="error" class="cmd-error">{{ error }}</text>
+    <navigator url="/pages/register/register" class="cmd-link">$ register --new-account</navigator>
+    <navigator url="/pages/forgot-password/forgot-password" class="cmd-link">$ passwd --forgot</navigator>
   </view>
 </template>
 
 <script setup lang="ts">
+/**
+ * 登录页 — 只做三件事：收集输入、调 useLogin、按结果跳转。
+ * 校验、请求、错误映射全在 useLogin / authApi 里，页面不 import uni.request。
+ */
 import { ref } from 'vue';
 import { useLogin } from '../../src/application/useLogin';
 
 const username = ref('');
 const password = ref('');
-const { loading, error, countdown, login } = useLogin();
+const { loading, error, login } = useLogin();
 
 async function handleLogin() {
-  try {
-    await login(username.value, password.value);
+  const ok = await login(username.value, password.value);
+  if (ok) {
     uni.navigateTo({ url: '/pages/index/index' });
-  } catch {}
+  }
 }
 </script>
 
 <style lang="scss" scoped>
+/* 终端风样式：每个页面重复声明一小块（教程不做公共样式抽取，与「页面只管展示」一致） */
 .terminal {
   background: #ffffff;
   min-height: 100vh;
@@ -78,37 +72,11 @@ async function handleLogin() {
   font-size: 26rpx;
   margin-bottom: 24rpx;
 }
-.cmd-countdown {
+.cmd-ok {
   display: block;
-  color: #999;
+  color: #333;
   font-size: 26rpx;
   margin-bottom: 24rpx;
-}
-.lock-screen {
-  text-align: center;
-  margin-top: 120rpx;
-}
-.lock-text {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 32rpx;
-  color: #d35400;
-  letter-spacing: 6rpx;
-  margin-bottom: 32rpx;
-}
-.lock-countdown {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 120rpx;
-  font-weight: bold;
-  color: #d35400;
-  -webkit-text-stroke: 3rpx #d35400;
-  -webkit-text-fill-color: transparent;
-  line-height: 1.2;
-}
-.lock-label {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 24rpx;
-  color: #999;
-  margin-bottom: 48rpx;
 }
 .cmd-link {
   display: block;

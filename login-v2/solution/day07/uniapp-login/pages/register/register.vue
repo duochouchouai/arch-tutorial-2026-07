@@ -1,33 +1,48 @@
 <template>
   <view class="terminal">
     <view class="prompt">$ useradd --create</view>
+    <input v-model="email" placeholder="email" class="cmd-input" />
+    <button @click="handleSendCode" :disabled="sending" class="cmd-btn">$ send-code --email</button>
+    <text v-if="codeSent" class="cmd-ok">[OK] 验证码已发送（若收不到请检查邮箱；开发环境见服务端控制台）</text>
+    <input v-model="code" placeholder="code (6 digits)" class="cmd-input" />
     <input v-model="username" placeholder="username" class="cmd-input" />
     <input v-model="password" type="password" placeholder="password" class="cmd-input" />
-    <input v-model="email" placeholder="email (optional)" class="cmd-input" />
-    <button @click="handleRegister" :disabled="loading" class="cmd-btn">$ useradd --confirm</button>
+    <button @click="handleRegister" :disabled="loading || !codeSent" class="cmd-btn">$ useradd --confirm</button>
     <text v-if="error" class="cmd-error">{{ error }}</text>
     <navigator url="/pages/login/login" class="cmd-link">$ ssh login@arch-tutorial</navigator>
   </view>
 </template>
 
 <script setup lang="ts">
+/**
+ * 注册页 — 两步流程（v2 起注册要验证码）：
+ *   1) 填邮箱 → 发送验证码；
+ *   2) 填验证码 + 用户名 + 密码 → 注册。
+ * 两步的状态都在 useRegister 里，页面只做展示与转发。
+ */
 import { ref } from 'vue';
 import { useRegister } from '../../src/application/useRegister';
 
+const email = ref('');
+const code = ref('');
 const username = ref('');
 const password = ref('');
-const email = ref('');
-const { loading, error, register } = useRegister();
+const { loading, sending, error, codeSent, sendCode, register } = useRegister();
+
+async function handleSendCode() {
+  await sendCode(email.value);
+}
 
 async function handleRegister() {
-  try {
-    await register(username.value, password.value, email.value);
+  const ok = await register(username.value, password.value, email.value, code.value);
+  if (ok) {
     uni.navigateTo({ url: '/pages/login/login' });
-  } catch {}
+  }
 }
 </script>
 
 <style lang="scss" scoped>
+/* 终端风样式：每个页面重复声明一小块（教程不做公共样式抽取，与「页面只管展示」一致） */
 .terminal {
   background: #ffffff;
   min-height: 100vh;
@@ -64,6 +79,12 @@ async function handleRegister() {
 .cmd-error {
   display: block;
   color: #cc0000;
+  font-size: 26rpx;
+  margin-bottom: 24rpx;
+}
+.cmd-ok {
+  display: block;
+  color: #333;
   font-size: 26rpx;
   margin-bottom: 24rpx;
 }
