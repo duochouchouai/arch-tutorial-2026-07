@@ -1,21 +1,11 @@
 {
-  "name": "login-v2",
-  "version": "1.0.0",
+  "name": "login-v2-tutorial",
+  "version": "2.0.0",
+  "private": true,
+  "description": "手打教程工作区：批量跑 solution/dayNN 的门禁（每个 solution 都是独立项目）",
   "scripts": {
-    "start": "ts-node src/index.ts",
-    "test": "vitest run"
-  },
-  "dependencies": {
-    "express": "^4.21.0",
-    "bcryptjs": "^2.4.3",
-    "zod": "^3.23.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.5.0"
-  },
-  "devDependencies": {
-    "@types/express": "^4.17.0",
-    "@types/bcryptjs": "^2.4.0",
-    "@types/node": "^22.0.0",
-    "vitest": "^2.1.0"
+    "install:all": "node scripts/run-all.mjs install",
+    "gate:all": "node scripts/run-all.mjs gate",
+    "test:all": "node scripts/run-all.mjs test"
   }
 }
